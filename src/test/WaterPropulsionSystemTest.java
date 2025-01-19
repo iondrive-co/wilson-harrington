@@ -5,36 +5,18 @@ import static org.junit.Assert.assertTrue;
 
 public class WaterPropulsionSystemTest {
     @Test
-    public void testCalculateTotalTons() {
+    public void testFuelToAccelerate() {
         // Test that higher deltaV requires more mass
-        assertTrue(WaterPropulsionSystem.STEAM.calculateTotalTons(2.0) >
-                WaterPropulsionSystem.STEAM.calculateTotalTons(1.0));
+        assertTrue(WaterPropulsionSystem.STEAM.fuelToAccelerate(2.0, WaterHauler.SMALL_STEAM.dryWeightTons) >
+                WaterPropulsionSystem.STEAM.fuelToAccelerate(1.0, WaterHauler.SMALL_STEAM.dryWeightTons));
 
-        // Test that zero deltaV requires baseline mass
-        assertEquals(1.0, WaterPropulsionSystem.STEAM.calculateTotalTons(0.0), 0.01);
+        // Test that zero deltaV requires no mass burnt
+        assertEquals(0, WaterPropulsionSystem.STEAM.fuelToAccelerate(0.0, WaterHauler.SMALL_STEAM.dryWeightTons), 0.01);
 
         // Test that more efficient engines need less mass for same deltaV
         double deltaV = 2.0;
-        assertTrue(WaterPropulsionSystem.STEAM.calculateTotalTons(deltaV) >
-                WaterPropulsionSystem.PLASMA_ION.calculateTotalTons(deltaV));
-    }
-
-    @Test
-    public void testCalculateRequiredPropellant() {
-        double cargoTons = 10.0;
-
-        // Test that higher deltaV uses more propellant
-        assertTrue(WaterPropulsionSystem.STEAM.calculateRequiredPropellant(2.0, cargoTons) >
-                WaterPropulsionSystem.STEAM.calculateRequiredPropellant(1.0, cargoTons));
-
-        // Test edge cases
-        assertEquals(0.0, WaterPropulsionSystem.STEAM.calculateRequiredPropellant(0.0, cargoTons), 0.01);
-        assertEquals(0.0, WaterPropulsionSystem.STEAM.calculateRequiredPropellant(1.0, 0.0), 0.01);
-
-        // Test that more efficient engines use less propellant
-        double deltaV = 2.0;
-        assertTrue(WaterPropulsionSystem.STEAM.calculateRequiredPropellant(deltaV, cargoTons) >
-                WaterPropulsionSystem.PLASMA_ION.calculateRequiredPropellant(deltaV, cargoTons));
+        assertTrue(WaterPropulsionSystem.STEAM.fuelToAccelerate(deltaV, WaterHauler.SMALL_STEAM.dryWeightTons) >
+                WaterPropulsionSystem.PLASMA_ION.fuelToAccelerate(deltaV, WaterHauler.SMALL_STEAM.dryWeightTons));
     }
 
     @Test
@@ -43,25 +25,18 @@ public class WaterPropulsionSystemTest {
         double cargoTons = 10.0;
 
         // Test ordering of efficiency for total mass (STEAM < ELECTROLYSIS < MICROWAVE < PLASMA)
-        assertTrue(WaterPropulsionSystem.STEAM.calculateTotalTons(deltaV) >
-                WaterPropulsionSystem.ELECTROLYSIS_COMBUSTION.calculateTotalTons(deltaV));
-        assertTrue(WaterPropulsionSystem.ELECTROLYSIS_COMBUSTION.calculateTotalTons(deltaV) >
-                WaterPropulsionSystem.MICROWAVE_ELECTROTHERMAL.calculateTotalTons(deltaV));
-        assertTrue(WaterPropulsionSystem.MICROWAVE_ELECTROTHERMAL.calculateTotalTons(deltaV) >
-                WaterPropulsionSystem.PLASMA_ION.calculateTotalTons(deltaV));
-
-        // Test same ordering for propellant usage
-        assertTrue(WaterPropulsionSystem.STEAM.calculateRequiredPropellant(deltaV, cargoTons) >
-                WaterPropulsionSystem.ELECTROLYSIS_COMBUSTION.calculateRequiredPropellant(deltaV, cargoTons));
-        assertTrue(WaterPropulsionSystem.ELECTROLYSIS_COMBUSTION.calculateRequiredPropellant(deltaV, cargoTons) >
-                WaterPropulsionSystem.MICROWAVE_ELECTROTHERMAL.calculateRequiredPropellant(deltaV, cargoTons));
-        assertTrue(WaterPropulsionSystem.MICROWAVE_ELECTROTHERMAL.calculateRequiredPropellant(deltaV, cargoTons) >
-                WaterPropulsionSystem.PLASMA_ION.calculateRequiredPropellant(deltaV, cargoTons));
+        assertTrue(WaterPropulsionSystem.STEAM.fuelToAccelerate(deltaV, 3) >
+                WaterPropulsionSystem.ELECTROLYSIS_COMBUSTION.fuelToAccelerate(deltaV, 3));
+        assertTrue(WaterPropulsionSystem.ELECTROLYSIS_COMBUSTION.fuelToAccelerate(deltaV, 3) >
+                WaterPropulsionSystem.MICROWAVE_ELECTROTHERMAL.fuelToAccelerate(deltaV, 3));
+        assertTrue(WaterPropulsionSystem.MICROWAVE_ELECTROTHERMAL.fuelToAccelerate(deltaV, 3) >
+                WaterPropulsionSystem.PLASMA_ION.fuelToAccelerate(deltaV, 3));
     }
 
     @Test
     public void sanityTestValues() {
-        System.out.println(WaterPropulsionSystem.STEAM.calculateTotalTons(8));
-        System.out.println(WaterPropulsionSystem.STEAM.calculateRequiredPropellant(8, 10));
+        System.out.println(WaterPropulsionSystem.STEAM.fuelToAccelerate(8, 10));
+        System.out.println(WaterPropulsionSystem.STEAM.deltaVFromBurning(9.99, 0.01));
+        System.out.println(WaterPropulsionSystem.STEAM.deltaVFromBurning(34796 - 10, 10));
     }
 }

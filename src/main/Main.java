@@ -4,7 +4,7 @@ import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class Main {
-    final static WaterHauler WATER_HAULER = WaterHauler.SMALL_STEAM;
+    final static WaterHauler WATER_HAULER = WaterHauler.SMALL_ELECTROLYSIS;
     static final int WATER_MINED_PER_DAY_TONS = 5;
 
     enum OptionType {
@@ -153,8 +153,8 @@ public class Main {
         asteroidState.updateOrbitalRadius(dayInOrbit, totalDaysInOrbit);
         final int availableWater = asteroidState.storedWaterTons + WATER_MINED_PER_DAY_TONS;
         final int shippableWater = Math.min(availableWater, WATER_HAULER.maxCargoTons);
-        System.out.printf("Mined %d tons water, now available %d tons, shippable %d tons\n", WATER_MINED_PER_DAY_TONS,
-                availableWater, shippableWater);
+        System.out.printf("Mined %d tons water, now available %d tons\n", WATER_MINED_PER_DAY_TONS, availableWater);
+        System.out.printf("%d ton hauler allows shipping %d tons of it\n", WATER_HAULER.dryWeightTons, shippableWater);
 
         for (Destination destination : destinations) {
             destination.updateDaily(dayInOrbit, totalDaysInOrbit);
@@ -168,7 +168,7 @@ public class Main {
             asteroidState.storedWaterTons += WATER_MINED_PER_DAY_TONS;
             System.out.println("No profitable non-cycler options found. Water stored for future use.\n");
         } else {
-            asteroidState.storedWaterTons -= shippableWater;
+            asteroidState.storedWaterTons = Math.max(asteroidState.storedWaterTons - shippableWater, 0);
         }
     }
 
@@ -230,7 +230,7 @@ public class Main {
         }
 
         double weight = shippableTons + WATER_HAULER.dryWeightTons;
-        double waterUsedForDeltaV = WATER_HAULER.propulsionSystem.calculateRequiredPropellant(deltaV, weight);
+        double waterUsedForDeltaV = WATER_HAULER.propulsionSystem.fuelToAccelerate(deltaV, weight);
         return new ShipmentOption(destination, shippableTons, waterUsedForDeltaV, deltaV, time);
     }
 
@@ -239,10 +239,10 @@ public class Main {
         for (DestinationType type : DestinationType.values()) {
             destinations.add(type.createDestination());
         }
-        System.out.println("Establishment Costs for cycler:");
+        System.out.println("Establishment Costs for " + WATER_HAULER.dryWeightTons + " ton cycler:");
         System.out.printf("%-15s %-20s\n", "Destination", "Fuel Used/Delta-V");
         for (Destination destination : destinations) {
-            double fuelUsed = WATER_HAULER.propulsionSystem.calculateTotalTons(
+            double fuelUsed = WATER_HAULER.propulsionSystem.fuelToAccelerate(
                     destination.type.cyclerEstablishmentDeltaV, WATER_HAULER.dryWeightTons);
             System.out.printf("%-15s %-20s\n", destination.type.name,
                     String.format("%.2f/%.2f", fuelUsed, destination.type.cyclerEstablishmentDeltaV));

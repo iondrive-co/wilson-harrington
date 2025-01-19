@@ -14,38 +14,37 @@ public enum WaterPropulsionSystem {
         this.specificImpulse = specificImpulse;
     }
 
-    private double calculateAchievableDeltaV(double fuelWeight, int dryWeight) {
-        double exhaustVelocity = specificImpulse * GRAVITY;
-        return (exhaustVelocity * Math.log((fuelWeight + dryWeight) / dryWeight)) / 1000.0; // Convert to km/s
-    }
-
-    public double calculateTotalTons(double targetDeltaV, final int dryWeight) {
-        // Use binary search to solve m0 in the rocket equation: deltaV = Isp * g * ln(m0/m1)
-        double low = 0.001;
-        double high = 1000.0;
+    /**
+     * Tons of water required to accelerate the dry weight + that water fuel to the target delta v
+     */
+    double fuelToAccelerate(double targetDeltaV, final double dryWeight) {
+        // Use binary search to solve m0 (initial weight) in the rocket equation: deltaV = Isp * g * ln(m0/m1)
+        double lowFuelWeightTons = 0.001;
+        double highFuelWeightTons = 1000;
         // If 1000 tons isn't enough, keep increasing upper bound
-        while (calculateAchievableDeltaV(high, dryWeight) < targetDeltaV) {
-            high *= 10;
+        while (deltaVFromBurning((int)highFuelWeightTons, dryWeight) < targetDeltaV) {
+            highFuelWeightTons *= 10;
         }
-        while (high - low > 0.0001) {
-            double mid = (low + high) / 2;
-            double achievableDeltaV = calculateAchievableDeltaV(mid, dryWeight);
+        while (highFuelWeightTons - lowFuelWeightTons > 0.0001) {
+            double midFuelWeightTons = (lowFuelWeightTons + highFuelWeightTons) / 2;
+            double achievableDeltaV = deltaVFromBurning(midFuelWeightTons, dryWeight);
 
             if (Math.abs(achievableDeltaV - targetDeltaV) < 0.0001) {
-                return mid;
+                return midFuelWeightTons;
             } else if (achievableDeltaV < targetDeltaV) {
-                low = mid;
+                lowFuelWeightTons = midFuelWeightTons;
             } else {
-                high = mid;
+                highFuelWeightTons = midFuelWeightTons;
             }
         }
-        return (low + high) / 2;
+        return (lowFuelWeightTons + highFuelWeightTons) / 2;
     }
 
-    public double calculateRequiredPropellant(double deltaV, double totalWeight) {
+    /**
+     * If we burn all the fuel weight so that only the dry weight remains, what delta-V do we get
+     */
+    double deltaVFromBurning(final double fuelWeightTons, final double dryWeightTons) {
         double exhaustVelocity = specificImpulse * GRAVITY;
-        double massRatio = Math.exp((deltaV * 1000.0) / exhaustVelocity);
-        double finalMass = totalWeight / massRatio;
-        return totalWeight - finalMass;
+        return (exhaustVelocity * Math.log((fuelWeightTons + dryWeightTons) / dryWeightTons)) / 1000.0; // Convert to km/s
     }
 }
