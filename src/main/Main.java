@@ -4,53 +4,10 @@ import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class Main {
-    final static PropulsionSystem PROPULSION_SYSTEM = PropulsionSystem.STEAM;
+    final static WaterPropulsionSystem PROPULSION_SYSTEM = WaterPropulsionSystem.STEAM;
 
     enum OptionType {
         EFFICIENT, FAST, CYCLER
-    }
-
-    /**
-     * Assume that water buys us delta V through some water based propulsion system
-     */
-    public enum PropulsionSystem {
-        STEAM(100),
-        ELECTROLYSIS_COMBUSTION(275),
-        PLASMA_ION(2000),
-        MICROWAVE_ELECTROTHERMAL(650);
-
-        private static final double GRAVITY = 9.81; // m/s^2
-        private final double specificImpulse;
-
-        PropulsionSystem(double specificImpulse) {
-            this.specificImpulse = specificImpulse;
-        }
-
-        /**
-         * Calculate total tons needed (including the propulsion system) to achieve a given delta-V.
-         * Assumes the entire mass is water/propellant.
-         *
-         * @param deltaV The desired delta-v in km/s
-         * @return Total tons of water needed (including system mass)
-         */
-        public double calculateTotalTons(double deltaV) {
-            double exhaustVelocity = specificImpulse * GRAVITY; // m/s
-            return Math.exp((deltaV * 1000.0) / exhaustVelocity);
-        }
-
-        /**
-         * Calculate how much of a given water cargo must be used as propellant to achieve
-         * a desired delta-V.
-         *
-         * @param deltaV The desired delta-v in km/s
-         * @param cargoTons The tons of water cargo being transported
-         * @return Tons of the cargo that must be used as propellant
-         */
-        public double calculateRequiredPropellant(double deltaV, double cargoTons) {
-            double massRatio = calculateTotalTons(deltaV);
-            double finalMass = cargoTons / massRatio;
-            return cargoTons - finalMass;
-        }
     }
 
     public enum DestinationType {
@@ -297,6 +254,7 @@ public class Main {
         System.out.println("Establishment Costs for cycler:");
         System.out.printf("%-15s %-20s\n", "Destination", "Fuel Used/Delta-V");
         for (Destination destination : destinations) {
+            // This assumes that the cycler's water propellant is being renewed - really we want to use a different fuel
             double fuelUsed = PROPULSION_SYSTEM.calculateTotalTons(destination.type.cyclerEstablishmentDeltaV);
             System.out.printf("%-15s %-20s\n", destination.type.name,
                     String.format("%.2f/%.2f", fuelUsed, destination.type.cyclerEstablishmentDeltaV));
