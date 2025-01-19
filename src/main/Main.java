@@ -4,8 +4,8 @@ import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class Main {
-    final static WaterPropulsionSystem PROPULSION_SYSTEM = WaterPropulsionSystem.STEAM;
-    static final int SPACECRAFT_DRY_WEIGHT_TONS = 1;
+    final static WaterHauler WATER_HAULER = WaterHauler.SMALL_STEAM;
+    static final int WATER_MINED_PER_DAY_TONS = 5;
 
     enum OptionType {
         EFFICIENT, FAST, CYCLER
@@ -113,31 +113,17 @@ public class Main {
     }
 
     static class AsteroidState {
-        double minedWaterPerDay;
         double orbitalRadius;
-        double storedWater;
+        int storedWaterTons;
 
-        public AsteroidState(double minedWaterPerDay, double orbitalRadius) {
-            this.minedWaterPerDay = minedWaterPerDay;
+        public AsteroidState(double orbitalRadius) {
             this.orbitalRadius = orbitalRadius;
-            this.storedWater = 0;
+            this.storedWaterTons = 0;
         }
 
         public void updateOrbitalRadius(int dayInOrbit, int totalDaysInOrbit) {
             double phase = (2 * Math.PI * dayInOrbit) / totalDaysInOrbit;
             this.orbitalRadius = 0.991 + 3.231 * (1 + Math.sin(phase)) / 2;
-        }
-
-        public double getAvailableWater() {
-            return minedWaterPerDay + storedWater;
-        }
-
-        public void resetStoredWater() {
-            this.storedWater = 0;
-        }
-
-        public void storeWater(double unusedWater) {
-            this.storedWater += unusedWater;
         }
     }
 
@@ -150,7 +136,7 @@ public class Main {
         double deltaV;
         double time;
 
-        public ShipmentOption(Destination destination, double waterShipped, double waterUsedForDeltaV, double profit, double deltaV, double time) {
+        public ShipmentOption(Destination destination, double waterShipped, double waterUsedForDeltaV, double deltaV, double time) {
             this.destination = destination;
             this.waterShipped = waterShipped;
             this.waterUsedForDeltaV = waterUsedForDeltaV;
@@ -165,35 +151,36 @@ public class Main {
                                    int dayInOrbit, int totalDaysInOrbit, int topN) {
         System.out.printf("Day %d | Distance from Sun: %.3f AU\n", dayInOrbit, asteroidState.orbitalRadius);
         asteroidState.updateOrbitalRadius(dayInOrbit, totalDaysInOrbit);
-        double availableWater = asteroidState.getAvailableWater();
-        System.out.printf("Mined %.2f tons water, now available %.2f tons\n",
-                asteroidState.minedWaterPerDay, availableWater);
+        final int availableWater = asteroidState.storedWaterTons + WATER_MINED_PER_DAY_TONS;
+        final int shippableWater = Math.min(availableWater, WATER_HAULER.maxCargoTons);
+        System.out.printf("Mined %d tons water, now available %d tons, shippable %d tons\n", WATER_MINED_PER_DAY_TONS,
+                availableWater, shippableWater);
 
         for (Destination destination : destinations) {
             destination.updateDaily(dayInOrbit, totalDaysInOrbit);
         }
 
-        displayTopOptions("Efficient Options", destinations, availableWater, OptionType.EFFICIENT, topN);
-        displayTopOptions("Fast Options", destinations, availableWater, OptionType.FAST, topN);
-        displayTopOptions("Cycler Options", destinations, availableWater, OptionType.CYCLER, topN);
+        displayTopOptions("Efficient Options", destinations, shippableWater, OptionType.EFFICIENT, topN);
+        displayTopOptions("Fast Options", destinations, shippableWater, OptionType.FAST, topN);
+        displayTopOptions("Cycler Options", destinations, shippableWater, OptionType.CYCLER, topN);
 
-        if (allNonCyclerOptionsUnprofitable(destinations, availableWater)) {
-            asteroidState.storeWater(availableWater);
+        if (allNonCyclerOptionsUnprofitable(destinations, shippableWater)) {
+            asteroidState.storedWaterTons += WATER_MINED_PER_DAY_TONS;
             System.out.println("No profitable non-cycler options found. Water stored for future use.\n");
         } else {
-            asteroidState.resetStoredWater();
+            asteroidState.storedWaterTons -= shippableWater;
         }
     }
 
     private static void displayTopOptions(String title, List<Destination> destinations,
-                                          double availableWater, OptionType optionType, int topN) {
+                                          final int shippableWater, OptionType optionType, int topN) {
         System.out.println(title + ":");
         System.out.printf("%-15s %-10s %-20s %-20s %-15s %-15s\n",
                 "Destination", "PPT ($)", "Shipped/Received (t)", "Fuel Used/Delta-V", "Profit ($)", "Time (days)");
 
         List<ShipmentOption> options = new ArrayList<>();
         for (Destination destination : destinations) {
-            ShipmentOption option = calculateShipmentOption(destination, availableWater, optionType);
+            ShipmentOption option = calculateShipmentOption(destination, shippableWater, optionType);
             options.add(option);
         }
 
@@ -212,10 +199,10 @@ public class Main {
         System.out.println();
     }
 
-    public static boolean allNonCyclerOptionsUnprofitable(List<Destination> destinations, double availableWater) {
+    public static boolean allNonCyclerOptionsUnprofitable(List<Destination> destinations, final int shippableTons) {
         for (Destination destination : destinations) {
-            ShipmentOption efficient = calculateShipmentOption(destination, availableWater, OptionType.EFFICIENT);
-            ShipmentOption fast = calculateShipmentOption(destination, availableWater, OptionType.FAST);
+            ShipmentOption efficient = calculateShipmentOption(destination, shippableTons, OptionType.EFFICIENT);
+            ShipmentOption fast = calculateShipmentOption(destination, shippableTons, OptionType.FAST);
             if (efficient.profit > 0 || fast.profit > 0) {
                 return false;
             }
@@ -224,7 +211,7 @@ public class Main {
     }
 
     public static ShipmentOption calculateShipmentOption(Destination destination,
-                                                         double availableWater, OptionType optionType) {
+                                                         int shippableTons, OptionType optionType) {
         double deltaV, time;
         switch (optionType) {
             case EFFICIENT -> {
@@ -242,9 +229,9 @@ public class Main {
             default -> throw new IllegalArgumentException("Invalid option type");
         }
 
-        double weight = availableWater + SPACECRAFT_DRY_WEIGHT_TONS;
-        double waterUsedForDeltaV = PROPULSION_SYSTEM.calculateRequiredPropellant(deltaV, weight);
-        return new ShipmentOption(destination, weight, waterUsedForDeltaV, 0, deltaV, time);
+        double weight = shippableTons + WATER_HAULER.dryWeightTons;
+        double waterUsedForDeltaV = WATER_HAULER.propulsionSystem.calculateRequiredPropellant(deltaV, weight);
+        return new ShipmentOption(destination, shippableTons, waterUsedForDeltaV, deltaV, time);
     }
 
     public static void main(String[] args) throws Exception {
@@ -255,14 +242,13 @@ public class Main {
         System.out.println("Establishment Costs for cycler:");
         System.out.printf("%-15s %-20s\n", "Destination", "Fuel Used/Delta-V");
         for (Destination destination : destinations) {
-            // This assumes that the cycler's water propellant is being renewed - really we want to use a different fuel
-            double fuelUsed = PROPULSION_SYSTEM.calculateTotalTons(
-                    destination.type.cyclerEstablishmentDeltaV, SPACECRAFT_DRY_WEIGHT_TONS);
+            double fuelUsed = WATER_HAULER.propulsionSystem.calculateTotalTons(
+                    destination.type.cyclerEstablishmentDeltaV, WATER_HAULER.dryWeightTons);
             System.out.printf("%-15s %-20s\n", destination.type.name,
                     String.format("%.2f/%.2f", fuelUsed, destination.type.cyclerEstablishmentDeltaV));
         }
 
-        AsteroidState asteroidState = new AsteroidState(10, 2.613);
+        AsteroidState asteroidState = new AsteroidState(2.613);
 
         int totalDaysInOrbit = 1537;
         int topN = 3;
