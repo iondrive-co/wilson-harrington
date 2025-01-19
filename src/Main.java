@@ -1,9 +1,10 @@
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class Main {
-    static Random random = new Random();
+    final static PropulsionSystem PROPULSION_SYSTEM = PropulsionSystem.STEAM;
 
     enum OptionType {
         EFFICIENT, FAST, CYCLER
@@ -18,11 +19,7 @@ public class Main {
         PLASMA_ION(2000),
         MICROWAVE_ELECTROTHERMAL(650);
 
-        // m/s^2
-        private static final double GRAVITY = 9.81;
-        // minimum dry mass ratio (can't use 100% of mass as propellant)
-        private static final double MIN_DRY_MASS_RATIO = 0.1; // 10% of total mass must be dry mass
-        // seconds
+        private static final double GRAVITY = 9.81; // m/s^2
         private final double specificImpulse;
 
         PropulsionSystem(double specificImpulse) {
@@ -30,41 +27,29 @@ public class Main {
         }
 
         /**
-         * Converts tons of water into delta-v (km/s).
+         * Calculate total tons needed (including the propulsion system) to achieve a given delta-V.
+         * Assumes the entire mass is water/propellant.
          *
-         * @param tonsWater   The amount of water in tons.
-         * @param initialMass The initial mass of the spacecraft in tons (including water).
-         * @return The delta-v in km/s.
+         * @param deltaV The desired delta-v in km/s
+         * @return Total tons of water needed (including system mass)
          */
-        public double calculateDeltaV(double tonsWater, double initialMass) {
-            if (tonsWater >= initialMass * (1 - MIN_DRY_MASS_RATIO)) {
-                throw new IllegalArgumentException("Propellant mass exceeds maximum allowed mass fraction");
-            }
-            double finalMass = initialMass - tonsWater;
-            return (specificImpulse * GRAVITY * Math.log(initialMass / finalMass)) / 1000.0; // Convert to km/s
+        public double calculateTotalTons(double deltaV) {
+            double exhaustVelocity = specificImpulse * GRAVITY; // m/s
+            return Math.exp((deltaV * 1000.0) / exhaustVelocity);
         }
 
         /**
-         * Converts delta-v (km/s) into tons of water required.
+         * Calculate how much of a given water cargo must be used as propellant to achieve
+         * a desired delta-V.
          *
-         * @param deltaV      The desired delta-v in km/s.
-         * @param initialMass The initial mass of the spacecraft in tons (including water).
-         * @return The tons of water required.
-         * @throws IllegalArgumentException if the required delta-V is impossible with the given mass ratio
+         * @param deltaV The desired delta-v in km/s
+         * @param cargoTons The tons of water cargo being transported
+         * @return Tons of the cargo that must be used as propellant
          */
-        public double calculateTonsWater(double deltaV, double initialMass) {
-            double exhaustVelocity = specificImpulse * GRAVITY; // m/s
-            double massRatio = Math.exp((deltaV * 1000.0) / exhaustVelocity);
-
-            // Check if the required mass ratio is achievable with our minimum dry mass constraint
-            if (massRatio > 1.0 / MIN_DRY_MASS_RATIO) {
-                throw new IllegalArgumentException(
-                        String.format("Required delta-V of %.1f km/s is impossible with Isp of %.0f seconds and minimum dry mass ratio of %.1f%%",
-                                deltaV, specificImpulse, MIN_DRY_MASS_RATIO * 100));
-            }
-
-            double finalMass = initialMass / massRatio;
-            return initialMass - finalMass;
+        public double calculateRequiredPropellant(double deltaV, double cargoTons) {
+            double massRatio = calculateTotalTons(deltaV);
+            double finalMass = cargoTons / massRatio;
+            return cargoTons - finalMass;
         }
     }
 
@@ -158,7 +143,7 @@ public class Main {
 
         public void updateDaily(int dayInOrbit, int totalDaysInOrbit) {
             double perihelionWeight = 1.0 - (double) dayInOrbit / totalDaysInOrbit;
-            this.salePricePerTon = type.calculateSalePrice(perihelionWeight, random);
+            this.salePricePerTon = type.calculateSalePrice(perihelionWeight, ThreadLocalRandom.current());
             this.timeEfficient = calculateHohmannTransferTime(2.613, type.orbitalRadius);
         }
 
@@ -300,7 +285,7 @@ public class Main {
         }
 
         double shippingTons = availableWater;
-        double waterUsedForDeltaV = PropulsionSystem.MICROWAVE_ELECTROTHERMAL.calculateTonsWater(deltaV, shippingTons);
+        double waterUsedForDeltaV = PROPULSION_SYSTEM.calculateRequiredPropellant(deltaV, shippingTons);
         return new ShipmentOption(destination, shippingTons, waterUsedForDeltaV, 0, deltaV, time);
     }
 
@@ -309,11 +294,10 @@ public class Main {
         for (DestinationType type : DestinationType.values()) {
             destinations.add(type.createDestination());
         }
-        final int cyclerTons = 1;
-        System.out.println("Establishment Costs for " + cyclerTons + " ton cycler:");
+        System.out.println("Establishment Costs for cycler:");
         System.out.printf("%-15s %-20s\n", "Destination", "Fuel Used/Delta-V");
         for (Destination destination : destinations) {
-            double fuelUsed = PropulsionSystem.MICROWAVE_ELECTROTHERMAL.calculateTonsWater(destination.type.cyclerEstablishmentDeltaV, cyclerTons);
+            double fuelUsed = PROPULSION_SYSTEM.calculateTotalTons(destination.type.cyclerEstablishmentDeltaV);
             System.out.printf("%-15s %-20s\n", destination.type.name,
                     String.format("%.2f/%.2f", fuelUsed, destination.type.cyclerEstablishmentDeltaV));
         }
@@ -326,9 +310,7 @@ public class Main {
         System.in.read();
         for (int dayInOrbit = 1; dayInOrbit <= totalDaysInOrbit; dayInOrbit++) {
             simulateDay(destinations, asteroidState, dayInOrbit, totalDaysInOrbit, topN);
-
-            System.out.println("Press Enter to proceed to the next day...");
-            System.in.read();
+            Thread.sleep(5_000);
         }
     }
 }
