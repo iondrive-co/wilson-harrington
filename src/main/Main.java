@@ -4,7 +4,7 @@ import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class Main {
-    final static WaterHauler WATER_HAULER = WaterHauler.SMALL_ELECTROLYSIS;
+    final static WaterHauler WATER_HAULER = WaterHauler.SMALL_STEAM;
     static final int WATER_MINED_PER_DAY_TONS = 5;
 
     enum OptionType {
@@ -154,7 +154,7 @@ public class Main {
         final int availableWater = asteroidState.storedWaterTons + WATER_MINED_PER_DAY_TONS;
         final int shippableWater = Math.min(availableWater, WATER_HAULER.maxCargoTons);
         System.out.printf("Mined %d tons water, now available %d tons\n", WATER_MINED_PER_DAY_TONS, availableWater);
-        System.out.printf("%d ton hauler allows shipping %d tons of it\n", WATER_HAULER.dryWeightTons, shippableWater);
+        System.out.printf("%.1f ton hauler allows shipping %d tons of it\n", WATER_HAULER.dryWeightTons, shippableWater);
 
         for (Destination destination : destinations) {
             destination.updateDaily(dayInOrbit, totalDaysInOrbit);

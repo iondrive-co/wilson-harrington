@@ -2,16 +2,15 @@
  * Assume that water buys us delta V through some water based propulsion system
  */
 public enum WaterPropulsionSystem {
-    STEAM(100),
-    ELECTROLYSIS_COMBUSTION(275),
-    PLASMA_ION(2000),
-    MICROWAVE_ELECTROTHERMAL(650);
+    STEAM(2_000),
+    ELECTROLYSIS_COMBUSTION(4_000),
+    MICROWAVE_ELECTROTHERMAL(10_000),
+    PLASMA_ION(20_000);
 
-    private static final double GRAVITY = 9.81; // m/s^2
-    private final double specificImpulse;
+    private final double specificImpulseMetersSec;
 
-    WaterPropulsionSystem(double specificImpulse) {
-        this.specificImpulse = specificImpulse;
+    WaterPropulsionSystem(double specificImpulseMetersSec) {
+        this.specificImpulseMetersSec = specificImpulseMetersSec;
     }
 
     /**
@@ -44,7 +43,6 @@ public enum WaterPropulsionSystem {
      * If we burn all the fuel weight so that only the dry weight remains, what delta-V do we get
      */
     double deltaVFromBurning(final double fuelWeightTons, final double dryWeightTons) {
-        double exhaustVelocity = specificImpulse * GRAVITY;
-        return (exhaustVelocity * Math.log((fuelWeightTons + dryWeightTons) / dryWeightTons)) / 1000.0; // Convert to km/s
+        return (specificImpulseMetersSec * Math.log((fuelWeightTons + dryWeightTons) / dryWeightTons)) / 1000.0; // Convert to km/s
     }
 }
