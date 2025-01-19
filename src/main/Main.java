@@ -5,6 +5,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public class Main {
     final static WaterPropulsionSystem PROPULSION_SYSTEM = WaterPropulsionSystem.STEAM;
+    static final int SPACECRAFT_DRY_WEIGHT_TONS = 1;
 
     enum OptionType {
         EFFICIENT, FAST, CYCLER
@@ -241,9 +242,9 @@ public class Main {
             default -> throw new IllegalArgumentException("Invalid option type");
         }
 
-        double shippingTons = availableWater;
-        double waterUsedForDeltaV = PROPULSION_SYSTEM.calculateRequiredPropellant(deltaV, shippingTons);
-        return new ShipmentOption(destination, shippingTons, waterUsedForDeltaV, 0, deltaV, time);
+        double weight = availableWater + SPACECRAFT_DRY_WEIGHT_TONS;
+        double waterUsedForDeltaV = PROPULSION_SYSTEM.calculateRequiredPropellant(deltaV, weight);
+        return new ShipmentOption(destination, weight, waterUsedForDeltaV, 0, deltaV, time);
     }
 
     public static void main(String[] args) throws Exception {
@@ -255,7 +256,8 @@ public class Main {
         System.out.printf("%-15s %-20s\n", "Destination", "Fuel Used/Delta-V");
         for (Destination destination : destinations) {
             // This assumes that the cycler's water propellant is being renewed - really we want to use a different fuel
-            double fuelUsed = PROPULSION_SYSTEM.calculateTotalTons(destination.type.cyclerEstablishmentDeltaV);
+            double fuelUsed = PROPULSION_SYSTEM.calculateTotalTons(
+                    destination.type.cyclerEstablishmentDeltaV, SPACECRAFT_DRY_WEIGHT_TONS);
             System.out.printf("%-15s %-20s\n", destination.type.name,
                     String.format("%.2f/%.2f", fuelUsed, destination.type.cyclerEstablishmentDeltaV));
         }

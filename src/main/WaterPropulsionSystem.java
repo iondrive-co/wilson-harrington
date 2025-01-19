@@ -14,23 +14,22 @@ public enum WaterPropulsionSystem {
         this.specificImpulse = specificImpulse;
     }
 
-    private double calculateAchievableDeltaV(double totalMass) {
+    private double calculateAchievableDeltaV(double fuelWeight, int dryWeight) {
         double exhaustVelocity = specificImpulse * GRAVITY;
-        double finalMass = 0.001; // Almost zero mass left
-        return (exhaustVelocity * Math.log(totalMass / finalMass)) / 1000.0; // Convert to km/s
+        return (exhaustVelocity * Math.log((fuelWeight + dryWeight) / dryWeight)) / 1000.0; // Convert to km/s
     }
 
-    public double calculateTotalTons(double targetDeltaV) {
+    public double calculateTotalTons(double targetDeltaV, final int dryWeight) {
         // Use binary search to solve m0 in the rocket equation: deltaV = Isp * g * ln(m0/m1)
         double low = 0.001;
         double high = 1000.0;
         // If 1000 tons isn't enough, keep increasing upper bound
-        while (calculateAchievableDeltaV(high) < targetDeltaV) {
+        while (calculateAchievableDeltaV(high, dryWeight) < targetDeltaV) {
             high *= 10;
         }
         while (high - low > 0.0001) {
             double mid = (low + high) / 2;
-            double achievableDeltaV = calculateAchievableDeltaV(mid);
+            double achievableDeltaV = calculateAchievableDeltaV(mid, dryWeight);
 
             if (Math.abs(achievableDeltaV - targetDeltaV) < 0.0001) {
                 return mid;
@@ -43,10 +42,10 @@ public enum WaterPropulsionSystem {
         return (low + high) / 2;
     }
 
-    public double calculateRequiredPropellant(double deltaV, double cargoTons) {
+    public double calculateRequiredPropellant(double deltaV, double totalWeight) {
         double exhaustVelocity = specificImpulse * GRAVITY;
         double massRatio = Math.exp((deltaV * 1000.0) / exhaustVelocity);
-        double finalMass = cargoTons / massRatio;
-        return cargoTons - finalMass;
+        double finalMass = totalWeight / massRatio;
+        return totalWeight - finalMass;
     }
 }
