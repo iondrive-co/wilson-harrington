@@ -9,6 +9,65 @@ public class Main {
         EFFICIENT, FAST, CYCLER
     }
 
+    /**
+     * Assume that water buys us delta V through some water based propulsion system
+     */
+    public enum PropulsionSystem {
+        STEAM(100),
+        ELECTROLYSIS_COMBUSTION(275),
+        PLASMA_ION(2000),
+        MICROWAVE_ELECTROTHERMAL(650);
+
+        // m/s^2
+        private static final double GRAVITY = 9.81;
+        // minimum dry mass ratio (can't use 100% of mass as propellant)
+        private static final double MIN_DRY_MASS_RATIO = 0.1; // 10% of total mass must be dry mass
+        // seconds
+        private final double specificImpulse;
+
+        PropulsionSystem(double specificImpulse) {
+            this.specificImpulse = specificImpulse;
+        }
+
+        /**
+         * Converts tons of water into delta-v (km/s).
+         *
+         * @param tonsWater   The amount of water in tons.
+         * @param initialMass The initial mass of the spacecraft in tons (including water).
+         * @return The delta-v in km/s.
+         */
+        public double calculateDeltaV(double tonsWater, double initialMass) {
+            if (tonsWater >= initialMass * (1 - MIN_DRY_MASS_RATIO)) {
+                throw new IllegalArgumentException("Propellant mass exceeds maximum allowed mass fraction");
+            }
+            double finalMass = initialMass - tonsWater;
+            return (specificImpulse * GRAVITY * Math.log(initialMass / finalMass)) / 1000.0; // Convert to km/s
+        }
+
+        /**
+         * Converts delta-v (km/s) into tons of water required.
+         *
+         * @param deltaV      The desired delta-v in km/s.
+         * @param initialMass The initial mass of the spacecraft in tons (including water).
+         * @return The tons of water required.
+         * @throws IllegalArgumentException if the required delta-V is impossible with the given mass ratio
+         */
+        public double calculateTonsWater(double deltaV, double initialMass) {
+            double exhaustVelocity = specificImpulse * GRAVITY; // m/s
+            double massRatio = Math.exp((deltaV * 1000.0) / exhaustVelocity);
+
+            // Check if the required mass ratio is achievable with our minimum dry mass constraint
+            if (massRatio > 1.0 / MIN_DRY_MASS_RATIO) {
+                throw new IllegalArgumentException(
+                        String.format("Required delta-V of %.1f km/s is impossible with Isp of %.0f seconds and minimum dry mass ratio of %.1f%%",
+                                deltaV, specificImpulse, MIN_DRY_MASS_RATIO * 100));
+            }
+
+            double finalMass = initialMass / massRatio;
+            return initialMass - finalMass;
+        }
+    }
+
     public enum DestinationType {
         MERCURY("Mercury", 7, 9, 0.5, 120, 45, 15, 0.39, 8) {
             @Override
@@ -64,11 +123,11 @@ public class Main {
         final double timeFast;
         final double timeCycler;
         final double orbitalRadius;
-        final double cyclerDeltaV;
+        final double cyclerEstablishmentDeltaV;
 
         DestinationType(String name, double deltaVEfficient, double deltaVFast, double deltaVCycler,
                         double timeEfficient, double timeFast, double timeCycler,
-                        double orbitalRadius, double cyclerDeltaV) {
+                        double orbitalRadius, double cyclerEstablishmentDeltaV) {
             this.name = name;
             this.deltaVEfficient = deltaVEfficient;
             this.deltaVFast = deltaVFast;
@@ -77,7 +136,7 @@ public class Main {
             this.timeFast = timeFast;
             this.timeCycler = timeCycler;
             this.orbitalRadius = orbitalRadius;
-            this.cyclerDeltaV = cyclerDeltaV;
+            this.cyclerEstablishmentDeltaV = cyclerEstablishmentDeltaV;
         }
 
         public abstract double calculateSalePrice(double perihelionWeight, Random random);
@@ -157,25 +216,6 @@ public class Main {
             this.deltaV = deltaV;
             this.time = time;
         }
-    }
-
-    public static void displayCyclerEstablishmentCosts(List<Destination> destinations) {
-        System.out.println("Cycler Establishment Costs:");
-        System.out.printf("%-15s %-20s\n", "Destination", "Fuel Used/Delta-V");
-        for (Destination destination : destinations) {
-            double fuelUsed = destination.type.cyclerDeltaV * 10;
-            System.out.printf("%-15s %-20s\n", destination.type.name,
-                    String.format("%.2f/%.2f", fuelUsed, destination.type.cyclerDeltaV));
-        }
-        System.out.println("Press enter to start");
-    }
-
-    public static List<Destination> initializeDestinations() {
-        List<Destination> destinations = new ArrayList<>();
-        for (DestinationType type : DestinationType.values()) {
-            destinations.add(type.createDestination());
-        }
-        return destinations;
     }
 
     public static void simulateDay(List<Destination> destinations, AsteroidState asteroidState,
@@ -259,20 +299,30 @@ public class Main {
             default -> throw new IllegalArgumentException("Invalid option type");
         }
 
-        double maxShippable = availableWater;
-        double waterUsedForDeltaV = maxShippable * (deltaV / 9.8);
-        return new ShipmentOption(destination, maxShippable, waterUsedForDeltaV, 0, deltaV, time);
+        double shippingTons = availableWater;
+        double waterUsedForDeltaV = PropulsionSystem.MICROWAVE_ELECTROTHERMAL.calculateTonsWater(deltaV, shippingTons);
+        return new ShipmentOption(destination, shippingTons, waterUsedForDeltaV, 0, deltaV, time);
     }
 
     public static void main(String[] args) throws Exception {
-        List<Destination> destinations = initializeDestinations();
-        displayCyclerEstablishmentCosts(destinations);
+        List<Destination> destinations = new ArrayList<>();
+        for (DestinationType type : DestinationType.values()) {
+            destinations.add(type.createDestination());
+        }
+        final int cyclerTons = 1;
+        System.out.println("Establishment Costs for " + cyclerTons + " ton cycler:");
+        System.out.printf("%-15s %-20s\n", "Destination", "Fuel Used/Delta-V");
+        for (Destination destination : destinations) {
+            double fuelUsed = PropulsionSystem.MICROWAVE_ELECTROTHERMAL.calculateTonsWater(destination.type.cyclerEstablishmentDeltaV, cyclerTons);
+            System.out.printf("%-15s %-20s\n", destination.type.name,
+                    String.format("%.2f/%.2f", fuelUsed, destination.type.cyclerEstablishmentDeltaV));
+        }
 
         AsteroidState asteroidState = new AsteroidState(10, 2.613);
 
         int totalDaysInOrbit = 1537;
         int topN = 3;
-
+        System.out.println("Press enter to start");
         System.in.read();
         for (int dayInOrbit = 1; dayInOrbit <= totalDaysInOrbit; dayInOrbit++) {
             simulateDay(destinations, asteroidState, dayInOrbit, totalDaysInOrbit, topN);
