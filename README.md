@@ -1,0 +1,2 @@
+Test various strategies for selling water from a water rich apollo asteroid, for example if it is better to use slow
+low energy transfers given a limited number of small haulers, and if it is worth establishing cyclers.

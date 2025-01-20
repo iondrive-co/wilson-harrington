@@ -30,36 +30,42 @@ public record Hauler(HaulerClass type, EnumMap<WaterPropulsionSystem, Integer> e
     }
 
     /**
-     * Tons of water required to accelerate the dry weight + that water fuel to the target delta v
+     * Amount of water required to accelerate the dry weight + that water fuel to the target delta v
      */
-    double tonsFuelToAccelerateTo(double targetDeltaV) {
-        final double dryWeightTons = getDryWeightKgs() / 1_000.0;
+    double kgsFuelToAccelerateTo(double targetDeltaV) {
+        final double dryWeightKgs = getDryWeightKgs();
         // Use binary search to solve m0 (initial weight) in the rocket equation: deltaV = Isp * g * ln(m0/m1)
-        double lowFuelWeightTons = 0.001;
-        double highFuelWeightTons = 1000;
-        // If 1000 tons isn't enough, keep increasing upper bound
-        while (deltaVFromBurning((int)highFuelWeightTons, dryWeightTons) < targetDeltaV) {
-            highFuelWeightTons *= 10;
+        double lowFuelWeightKgs = 0.001;
+        double highFuelWeightKgs = 1_000_000;
+        // If highFuelWeightKgs isn't enough, keep increasing upper bound
+        while (deltaVFromBurning((int)highFuelWeightKgs, dryWeightKgs) < targetDeltaV) {
+            highFuelWeightKgs *= 10;
         }
-        while (highFuelWeightTons - lowFuelWeightTons > 0.0001) {
-            double midFuelWeightTons = (lowFuelWeightTons + highFuelWeightTons) / 2;
-            double achievableDeltaV = deltaVFromBurning(midFuelWeightTons, dryWeightTons);
+        while (highFuelWeightKgs - lowFuelWeightKgs > 0.0001) {
+            double midFuelWeightKgs = (lowFuelWeightKgs + highFuelWeightKgs) / 2;
+            double achievableDeltaV = deltaVFromBurning(midFuelWeightKgs, dryWeightKgs);
 
             if (Math.abs(achievableDeltaV - targetDeltaV) < 0.0001) {
-                return midFuelWeightTons;
+                return midFuelWeightKgs;
             } else if (achievableDeltaV < targetDeltaV) {
-                lowFuelWeightTons = midFuelWeightTons;
+                lowFuelWeightKgs = midFuelWeightKgs;
             } else {
-                highFuelWeightTons = midFuelWeightTons;
+                highFuelWeightKgs = midFuelWeightKgs;
             }
         }
-        return (lowFuelWeightTons + highFuelWeightTons) / 2;
+        return (lowFuelWeightKgs + highFuelWeightKgs) / 2;
     }
 
     /**
      * If we burn all the fuel weight so that only the dry weight remains, what delta-V do we get
      */
-    double deltaVFromBurning(final double fuelWeightTons, final double dryWeightTons) {
-        return (getImpulseMetersSec() * Math.log((fuelWeightTons + dryWeightTons) / dryWeightTons)) / 1000.0; // Convert to km/s
+    double deltaVFromBurning(final double fuelWeightKgs, final double dryWeightKgs) {
+        return (getImpulseMetersSec() * Math.log((fuelWeightKgs + dryWeightKgs) / dryWeightKgs)) / 1000.0; // Convert to km/s
+    }
+
+    @Override
+    public String toString() {
+        return "Capacity " + type.maxCargoKgs + "kg dry weight " + getDryWeightKgs() + "kgs impulse " +
+                getImpulseMetersSec() + "m/s";
     }
 }
