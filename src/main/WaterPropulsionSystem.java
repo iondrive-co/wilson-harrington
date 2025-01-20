@@ -1,48 +1,30 @@
 /**
- * Assume that water buys us delta V through some water based propulsion system
+ * Convert water to delta V
  */
 public enum WaterPropulsionSystem {
-    STEAM(2_000),
-    ELECTROLYSIS_COMBUSTION(4_000),
-    MICROWAVE_ELECTROTHERMAL(10_000),
-    PLASMA_ION(20_000);
+    THERMAL("Heats water into steam for propulsion", 5_000, 0.25, 5, 100, 2_500_000, 10),
+    ELECTROLYSIS("Split water into hydrogen and oxygen via electrolysis, combusting the gases for propulsion", 3_000, 0.3, 3, 50, 1_000_000, 30),
+    ELECTROSTATIC("Ionize water molecules and use electric fields to accelerate them for thrust", 10_000, 0.6, 25, 225, 7_500_000, 10),
+    PLASMA("Lasers heat and ionize water into plasma", 15_000, 0.7, 75, 300, 10_000_000, 8),
+    MAGNETOHYDRODYNAMIC("Ionize water and use magnetic and electric fields to accelerate ions for propulsion", 50_000, 0.7, 50, 1_000, 35_000_000, 5),
+    FUSION("Use fusion reactions to convert water into superheated plasma fir thrust", 100_000, 0.8, 250_000, 2_500, 50_000_000, 2);
 
-    private final double specificImpulseMetersSec;
+    final String description;
+    final double specificImpulseMetersSec;
+    final double conversionEfficiency;
+    final int requiredPowerKW;
+    final int weightKg;
+    final int cost;
+    final int maxPerShip;
 
-    WaterPropulsionSystem(double specificImpulseMetersSec) {
+    WaterPropulsionSystem(final String description, int specificImpulseMetersSec, double conversionEfficiency,
+                          int requiredPowerKW, int weightKg, int cost, int maxPerShip) {
+        this.description = description;
         this.specificImpulseMetersSec = specificImpulseMetersSec;
-    }
-
-    /**
-     * Tons of water required to accelerate the dry weight + that water fuel to the target delta v
-     */
-    double fuelToAccelerate(double targetDeltaV, final double dryWeight) {
-        // Use binary search to solve m0 (initial weight) in the rocket equation: deltaV = Isp * g * ln(m0/m1)
-        double lowFuelWeightTons = 0.001;
-        double highFuelWeightTons = 1000;
-        // If 1000 tons isn't enough, keep increasing upper bound
-        while (deltaVFromBurning((int)highFuelWeightTons, dryWeight) < targetDeltaV) {
-            highFuelWeightTons *= 10;
-        }
-        while (highFuelWeightTons - lowFuelWeightTons > 0.0001) {
-            double midFuelWeightTons = (lowFuelWeightTons + highFuelWeightTons) / 2;
-            double achievableDeltaV = deltaVFromBurning(midFuelWeightTons, dryWeight);
-
-            if (Math.abs(achievableDeltaV - targetDeltaV) < 0.0001) {
-                return midFuelWeightTons;
-            } else if (achievableDeltaV < targetDeltaV) {
-                lowFuelWeightTons = midFuelWeightTons;
-            } else {
-                highFuelWeightTons = midFuelWeightTons;
-            }
-        }
-        return (lowFuelWeightTons + highFuelWeightTons) / 2;
-    }
-
-    /**
-     * If we burn all the fuel weight so that only the dry weight remains, what delta-V do we get
-     */
-    double deltaVFromBurning(final double fuelWeightTons, final double dryWeightTons) {
-        return (specificImpulseMetersSec * Math.log((fuelWeightTons + dryWeightTons) / dryWeightTons)) / 1000.0; // Convert to km/s
+        this.conversionEfficiency = conversionEfficiency;
+        this.requiredPowerKW = requiredPowerKW;
+        this.weightKg = weightKg;
+        this.cost = cost;
+        this.maxPerShip = maxPerShip;
     }
 }

@@ -1,10 +1,10 @@
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class Main {
-    final static WaterHauler WATER_HAULER = WaterHauler.SMALL_STEAM;
+    final static Hauler WATER_HAULER = new Hauler(HaulerClass.SMALL,
+            new EnumMap<>(Map.of(WaterPropulsionSystem.THERMAL, 1)),
+            new EnumMap<>(Map.of(PowerSource.SOLAR, 5)));
     static final int WATER_MINED_PER_DAY_TONS = 5;
 
     enum OptionType {
@@ -129,19 +129,20 @@ public class Main {
 
     static class ShipmentOption {
         Destination destination;
-        double waterShipped;
-        double waterReceived;
-        double waterUsedForDeltaV;
+        double tonsWaterShipped;
+        double tonsWaterReceived;
+        double tonsWaterUsedForDeltaV;
         double profit;
         double deltaV;
         double time;
 
-        public ShipmentOption(Destination destination, double waterShipped, double waterUsedForDeltaV, double deltaV, double time) {
+        public ShipmentOption(Destination destination, double tonsWaterShipped, double tonsWaterUsedForDeltaV,
+                              double deltaV, double time) {
             this.destination = destination;
-            this.waterShipped = waterShipped;
-            this.waterUsedForDeltaV = waterUsedForDeltaV;
-            this.waterReceived = Math.max(waterShipped - waterUsedForDeltaV, 0);
-            this.profit = waterReceived > 0 ? waterReceived * destination.salePricePerTon : -1;
+            this.tonsWaterShipped = tonsWaterShipped;
+            this.tonsWaterUsedForDeltaV = tonsWaterUsedForDeltaV;
+            this.tonsWaterReceived = Math.max(tonsWaterShipped - tonsWaterUsedForDeltaV, 0);
+            this.profit = tonsWaterReceived > 0 ? tonsWaterReceived * destination.salePricePerTon : -1;
             this.deltaV = deltaV;
             this.time = time;
         }
@@ -152,9 +153,9 @@ public class Main {
         System.out.printf("Day %d | Distance from Sun: %.3f AU\n", dayInOrbit, asteroidState.orbitalRadius);
         asteroidState.updateOrbitalRadius(dayInOrbit, totalDaysInOrbit);
         final int availableWater = asteroidState.storedWaterTons + WATER_MINED_PER_DAY_TONS;
-        final int shippableWater = Math.min(availableWater, WATER_HAULER.maxCargoTons);
+        final int shippableWater = Math.min(availableWater, WATER_HAULER.type().maxCargoTons);
         System.out.printf("Mined %d tons water, now available %d tons\n", WATER_MINED_PER_DAY_TONS, availableWater);
-        System.out.printf("%.1f ton hauler allows shipping %d tons of it\n", WATER_HAULER.dryWeightTons, shippableWater);
+        System.out.printf("%d kg hauler allows shipping %d tons of it\n", WATER_HAULER.getDryWeightKgs(), shippableWater);
 
         for (Destination destination : destinations) {
             destination.updateDaily(dayInOrbit, totalDaysInOrbit);
@@ -190,9 +191,9 @@ public class Main {
             System.out.printf("%-15s %-10.2f %-20s %-20s %-15s %-15.2f\n",
                     option.destination.type.name,
                     option.destination.salePricePerTon,
-                    String.format("%.2f/%s", option.waterShipped,
-                            option.waterReceived > 0 ? String.format("%.2f", option.waterReceived) : "-"),
-                    String.format("%.2f/%.2f", option.waterUsedForDeltaV, option.deltaV),
+                    String.format("%.2f/%s", option.tonsWaterShipped,
+                            option.tonsWaterReceived > 0 ? String.format("%.2f", option.tonsWaterReceived) : "-"),
+                    String.format("%.2f/%.2f", option.tonsWaterUsedForDeltaV, option.deltaV),
                     option.profit > 0 ? String.format("%.2f", option.profit) : "-",
                     option.time);
         }
@@ -229,9 +230,8 @@ public class Main {
             default -> throw new IllegalArgumentException("Invalid option type");
         }
 
-        double weight = shippableTons + WATER_HAULER.dryWeightTons;
-        double waterUsedForDeltaV = WATER_HAULER.propulsionSystem.fuelToAccelerate(deltaV, weight);
-        return new ShipmentOption(destination, shippableTons, waterUsedForDeltaV, deltaV, time);
+        double tonsWaterUsedForDeltaV = WATER_HAULER.tonsFuelToAccelerateTo(deltaV);
+        return new ShipmentOption(destination, shippableTons, tonsWaterUsedForDeltaV, deltaV, time);
     }
 
     public static void main(String[] args) throws Exception {
@@ -239,17 +239,15 @@ public class Main {
         for (DestinationType type : DestinationType.values()) {
             destinations.add(type.createDestination());
         }
-        System.out.println("Establishment Costs for " + WATER_HAULER.dryWeightTons + " ton cycler:");
+        System.out.println("Establishment Costs for " + WATER_HAULER.getDryWeightKgs() + "kg cycler:");
         System.out.printf("%-15s %-20s\n", "Destination", "Fuel Used/Delta-V");
         for (Destination destination : destinations) {
-            double fuelUsed = WATER_HAULER.propulsionSystem.fuelToAccelerate(
-                    destination.type.cyclerEstablishmentDeltaV, WATER_HAULER.dryWeightTons);
+            double tonsFuelUsed = WATER_HAULER.tonsFuelToAccelerateTo(destination.type.cyclerEstablishmentDeltaV);
             System.out.printf("%-15s %-20s\n", destination.type.name,
-                    String.format("%.2f/%.2f", fuelUsed, destination.type.cyclerEstablishmentDeltaV));
+                    String.format("%.2f/%.2f", tonsFuelUsed, destination.type.cyclerEstablishmentDeltaV));
         }
 
         AsteroidState asteroidState = new AsteroidState(2.613);
-
         int totalDaysInOrbit = 1537;
         int topN = 3;
         System.out.println("Press enter to start");
