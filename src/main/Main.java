@@ -1,5 +1,4 @@
 import java.util.*;
-import java.util.concurrent.ThreadLocalRandom;
 
 public class Main {
     final static Hauler WATER_HAULER = new Hauler(HaulerClass.SMALL,
@@ -9,107 +8,6 @@ public class Main {
 
     enum OptionType {
         EFFICIENT, FAST, CYCLER
-    }
-
-    public enum DestinationType {
-        MERCURY("Mercury", 7, 9, 0.5, 120, 45, 15, 0.39, 8) {
-            @Override
-            public double calculateSalePricePerKg(double perihelionWeight, Random random) {
-                return 8 + perihelionWeight * 2 + random.nextDouble();
-            }
-        },
-        EARTH_LEO("Earth LEO", 1, 2, 0.5, 60, 15, 10, 1.01, 6) {
-            @Override
-            public double calculateSalePricePerKg(double perihelionWeight, Random random) {
-                return 5 + random.nextDouble() * 3;
-            }
-        },
-        MARS("Mars", 1.5, 3, 1, 75, 20, 15, 1.52, 7) {
-            @Override
-            public double calculateSalePricePerKg(double perihelionWeight, Random random) {
-                double aphelionWeight = 1.0 - perihelionWeight;
-                return 6 + aphelionWeight * 2 + random.nextDouble();
-            }
-        },
-        PSYCHE("Psyche", 3, 6, 2, 360, 180, 90, 2.92, 8) {
-            @Override
-            public double calculateSalePricePerKg(double perihelionWeight, Random random) {
-                double aphelionWeight = 1.0 - perihelionWeight;
-                return 6 + aphelionWeight * 2 + random.nextDouble();
-            }
-        },
-        EML1("EML1", 1, 2, 0.5, 60, 15, 10, 1.01, 6) {
-            @Override
-            public double calculateSalePricePerKg(double perihelionWeight, Random random) {
-                return 5 + random.nextDouble() * 3;
-            }
-        },
-        DA1986("1986 DA", 1.5, 3, 1, 120, 60, 30, 2.42, 6) {
-            @Override
-            public double calculateSalePricePerKg(double perihelionWeight, Random random) {
-                double aphelionWeight = 1.0 - perihelionWeight;
-                return 5.5 + aphelionWeight * 1.5 + random.nextDouble();
-            }
-        },
-        ED85("2016 ED85", 1, 2, 0.5, 90, 30, 15, 1.8, 5) {
-            @Override
-            public double calculateSalePricePerKg(double perihelionWeight, Random random) {
-                return 5 + random.nextDouble() * 2;
-            }
-        };
-
-        final String name;
-        final double deltaVEfficient;
-        final double deltaVFast;
-        final double deltaVCycler;
-        final double timeEfficient;
-        final double timeFast;
-        final double timeCycler;
-        final double orbitalRadius;
-        final double cyclerEstablishmentDeltaV;
-
-        DestinationType(String name, double deltaVEfficient, double deltaVFast, double deltaVCycler,
-                        double timeEfficient, double timeFast, double timeCycler,
-                        double orbitalRadius, double cyclerEstablishmentDeltaV) {
-            this.name = name;
-            this.deltaVEfficient = deltaVEfficient;
-            this.deltaVFast = deltaVFast;
-            this.deltaVCycler = deltaVCycler;
-            this.timeEfficient = timeEfficient;
-            this.timeFast = timeFast;
-            this.timeCycler = timeCycler;
-            this.orbitalRadius = orbitalRadius;
-            this.cyclerEstablishmentDeltaV = cyclerEstablishmentDeltaV;
-        }
-
-        public abstract double calculateSalePricePerKg(double perihelionWeight, Random random);
-
-        public Destination createDestination() {
-            return new Destination(this);
-        }
-    }
-
-    static class Destination {
-        final DestinationType type;
-        double salePricePerKg;
-        double timeEfficient;
-
-        public Destination(DestinationType type) {
-            this.type = type;
-            this.timeEfficient = type.timeEfficient;
-        }
-
-        public void updateDaily(int dayInOrbit, int totalDaysInOrbit) {
-            double perihelionWeight = 1.0 - (double) dayInOrbit / totalDaysInOrbit;
-            this.salePricePerKg = type.calculateSalePricePerKg(perihelionWeight, ThreadLocalRandom.current());
-            this.timeEfficient = calculateHohmannTransferTime(2.613, type.orbitalRadius);
-        }
-
-        private double calculateHohmannTransferTime(double r1, double r2) {
-            double G = 39.478;
-            double M = 1.0;
-            return Math.PI * Math.sqrt(Math.pow((r1 + r2) / 2, 3) / (G * M)) * 365.25;
-        }
     }
 
     static class AsteroidState {
@@ -161,9 +59,9 @@ public class Main {
             destination.updateDaily(dayInOrbit, totalDaysInOrbit);
         }
 
-        displayTopOptions("Efficient Options", destinations, shippableKgsWater, OptionType.EFFICIENT);
-        displayTopOptions("Fast Options", destinations, shippableKgsWater, OptionType.FAST);
-        displayTopOptions("Cycler Options", destinations, shippableKgsWater, OptionType.CYCLER);
+        displayOptions("Efficient Options", destinations, shippableKgsWater, OptionType.EFFICIENT);
+        displayOptions("Fast Options", destinations, shippableKgsWater, OptionType.FAST);
+        displayOptions("Cycler Options", destinations, shippableKgsWater, OptionType.CYCLER);
 
         if (allNonCyclerOptionsUnprofitable(destinations, shippableKgsWater)) {
             asteroidState.storedWaterKgs += KGS_WATER_MINED_PER_DAY;
@@ -173,8 +71,8 @@ public class Main {
         }
     }
 
-    private static void displayTopOptions(final String title, final List<Destination> destinations,
-                                          final int shippableKgsWater, final OptionType optionType) {
+    private static void displayOptions(final String title, final List<Destination> destinations,
+                                       final int shippableKgsWater, final OptionType optionType) {
         final List<ShipmentOption> options = new ArrayList<>();
         for (Destination destination : destinations) {
             ShipmentOption option = calculateShipmentOption(destination, shippableKgsWater, optionType);
@@ -211,19 +109,20 @@ public class Main {
 
     public static ShipmentOption calculateShipmentOption(final Destination destination, final int shippableKgsWater,
                                                          final OptionType optionType) {
-        double deltaV, time;
+        double deltaV;
+        double time;
         switch (optionType) {
             case EFFICIENT -> {
-                deltaV = destination.type.deltaVEfficient;
+                deltaV = destination.deltaVEfficient;
                 time = destination.timeEfficient;
             }
             case FAST -> {
-                deltaV = destination.type.deltaVFast;
-                time = destination.type.timeFast;
+                deltaV = destination.deltaVFast;
+                time = destination.timeFast;
             }
             case CYCLER -> {
-                deltaV = destination.type.deltaVCycler;
-                time = destination.type.timeCycler;
+                deltaV = destination.deltaVCycler;
+                time = destination.timeCycler;
             }
             default -> throw new IllegalArgumentException("Invalid option type");
         }
