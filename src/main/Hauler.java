@@ -34,14 +34,19 @@ public record Hauler(HaulerClass type, EnumMap<WaterPropulsionSystem, Integer> e
      */
     double kgsFuelToAccelerateTo(double targetDeltaV) {
         final double dryWeightKgs = getDryWeightKgs();
-        // Use binary search to solve m0 (initial weight) in the rocket equation: deltaV = Isp * g * ln(m0/m1)
+
+        // Check if deltaV is achievable
+        double maxDeltaV = getImpulseMetersSec() * Math.log((dryWeightKgs + 500) / dryWeightKgs) / 1000.0;
+        if (targetDeltaV > maxDeltaV) {
+            return Double.POSITIVE_INFINITY;
+        }
+
+        // Use binary search to solve rocket equation
         double lowFuelWeightKgs = 0.001;
         double highFuelWeightKgs = 1_000_000;
-        // If highFuelWeightKgs isn't enough, keep increasing upper bound
-        while (deltaVFromBurning((int)highFuelWeightKgs, dryWeightKgs) < targetDeltaV) {
-            highFuelWeightKgs *= 10;
-        }
-        while (highFuelWeightKgs - lowFuelWeightKgs > 0.0001) {
+
+        int iterations = 0;
+        while (highFuelWeightKgs - lowFuelWeightKgs > 0.0001 && iterations < 100) {
             double midFuelWeightKgs = (lowFuelWeightKgs + highFuelWeightKgs) / 2;
             double achievableDeltaV = deltaVFromBurning(midFuelWeightKgs, dryWeightKgs);
 
@@ -52,7 +57,13 @@ public record Hauler(HaulerClass type, EnumMap<WaterPropulsionSystem, Integer> e
             } else {
                 highFuelWeightKgs = midFuelWeightKgs;
             }
+            iterations++;
         }
+
+        if (iterations >= 100) {
+            return Double.POSITIVE_INFINITY;
+        }
+
         return (lowFuelWeightKgs + highFuelWeightKgs) / 2;
     }
 
