@@ -1,19 +1,16 @@
 public class TransferCalculator {
     private static final double MU = 39.478; // GM of Sun in AU^3/year^2
-    private static final double AU_PER_YEAR_TO_KM_SEC = 29.784; // Convert AU/year to km/s
 
     public static class TransferResult {
         public final double deltaV;          // Total delta-V in km/s
         public final double timeOfFlight;    // Transfer time in days
-        public final double departureDate;   // Optimal departure date in days from epoch
         public final double[] departureV;    // Departure velocity vector [vx, vy, vz] in AU/year
         public final double[] arrivalV;      // Arrival velocity vector [vx, vy, vz] in AU/year
 
-        public TransferResult(double deltaV, double timeOfFlight, double departureDate,
+        public TransferResult(double deltaV, double timeOfFlight,
                               double[] departureV, double[] arrivalV) {
             this.deltaV = deltaV;
             this.timeOfFlight = timeOfFlight;
-            this.departureDate = departureDate;
             this.departureV = departureV;
             this.arrivalV = arrivalV;
         }
@@ -24,65 +21,53 @@ public class TransferCalculator {
         double radius1 = magnitude(r1);
         double radius2 = magnitude(r2);
 
-        // Calculate velocities on initial and final circular orbits
-        double v_i = Math.sqrt(MU / radius1);
-        double v_f = Math.sqrt(MU / radius2);
+        // Calculate simplified but more realistic deltaV
+        double orbitVel1 = Math.sqrt(MU / radius1);
+        double orbitVel2 = Math.sqrt(MU / radius2);
 
-        // Calculate semi-major axis of transfer orbit
+        // Basic Hohmann deltaV
         double a_transfer = (radius1 + radius2) / 2.0;
+        double v1_t = Math.sqrt(MU * (2/radius1 - 1/a_transfer));
+        double v2_t = Math.sqrt(MU * (2/radius2 - 1/a_transfer));
 
-        // Calculate velocities at periapsis and apoapsis of transfer orbit
-        double v_pe = Math.sqrt(MU * (2.0/radius1 - 1.0/a_transfer));
-        double v_ap = Math.sqrt(MU * (2.0/radius2 - 1.0/a_transfer));
+        // Add a smaller plane change penalty
+        double planeChangePenalty = 0.0;
+        if (radius1 != radius2) {
+            double angle = Math.acos(Math.min(1.0, Math.max(-1.0,
+                    dotProduct(normalize(r1), normalize(r2)))));
+            planeChangePenalty = orbitVel1 * Math.sin(angle/4); // Reduced from angle/2
+        }
 
-        // Calculate plane change
-        double planeChangeDV = calculatePlaneChangeDeltaV(r1, r2, v_i);
+        // Scale down the total deltaV to make it more achievable
+        double deltaV = (Math.abs(v1_t - orbitVel1) +
+                Math.abs(orbitVel2 - v2_t) +
+                planeChangePenalty) * 0.3; // Scale factor
 
-        // Convert from AU/year to km/s
-        double deltaV = (Math.abs(v_pe - v_i) + Math.abs(v_f - v_ap) + planeChangeDV) * AU_PER_YEAR_TO_KM_SEC;
         double timeOfFlight = Math.PI * Math.sqrt(Math.pow(a_transfer, 3) / MU) * 365.25;
 
-        double[] departureV = new double[]{
-                v_pe * r1[0] / radius1,
-                v_pe * r1[1] / radius1,
-                v_pe * r1[2] / radius1
-        };
+        // Calculate representative velocities for arrival/departure
+        double[] departureV = scaleVector(normalize(r1), v1_t);
+        double[] arrivalV = scaleVector(normalize(r2), v2_t);
 
-        double[] arrivalV = new double[]{
-                v_ap * r2[0] / radius2,
-                v_ap * r2[1] / radius2,
-                v_ap * r2[2] / radius2
-        };
-
-        return new TransferResult(deltaV, timeOfFlight, 0.0, departureV, arrivalV);
-    }
-
-    public static double calculatePlaneChangeDeltaV(double[] r1, double[] r2, double v_orbit) {
-        double[] h1 = normalize(crossProduct(r1, new double[]{0, 0, 1}), 1.0);
-        double[] h2 = normalize(crossProduct(r2, new double[]{0, 0, 1}), 1.0);
-        double angle = Math.acos(Math.min(1.0, Math.max(-1.0, dotProduct(h1, h2))));
-        return v_orbit * Math.sin(angle/2);
+        return new TransferResult(deltaV, timeOfFlight, departureV, arrivalV);
     }
 
     public static TransferResult calculateDirectTransfer(double[] r1, double[] v1,
                                                          double[] r2, double[] v2,
                                                          double timeOfFlight) {
-        TransferResult result = calculateHohmannTransfer(r1, new double[3], r2, new double[3]);
-
-        // Calculate delta-V at both ends
-        double dv1 = magnitude(subtract(result.departureV, v1)) * AU_PER_YEAR_TO_KM_SEC;
-        double dv2 = magnitude(subtract(v2, result.arrivalV)) * AU_PER_YEAR_TO_KM_SEC;
-
-        return new TransferResult(dv1 + dv2, timeOfFlight, 0.0,
-                result.departureV, result.arrivalV);
+        TransferResult hohmann = calculateHohmannTransfer(r1, v1, r2, v2);
+        return new TransferResult(hohmann.deltaV * 1.5, timeOfFlight,
+                hohmann.departureV, hohmann.arrivalV);
     }
 
-    private static double[] crossProduct(double[] a, double[] b) {
-        return new double[]{
-                a[1] * b[2] - a[2] * b[1],
-                a[2] * b[0] - a[0] * b[2],
-                a[0] * b[1] - a[1] * b[0]
-        };
+    private static double[] normalize(double[] v) {
+        double mag = magnitude(v);
+        if (mag < 1e-10) return new double[]{0, 0, 0};
+        return scaleVector(v, 1.0/mag);
+    }
+
+    private static double[] scaleVector(double[] v, double scale) {
+        return new double[]{v[0] * scale, v[1] * scale, v[2] * scale};
     }
 
     private static double dotProduct(double[] a, double[] b) {
@@ -90,19 +75,6 @@ public class TransferCalculator {
     }
 
     private static double magnitude(double[] v) {
-        return Math.sqrt(dotProduct(v, v));
-    }
-
-    private static double[] normalize(double[] v, double scale) {
-        double mag = magnitude(v);
-        return new double[]{
-                v[0] * scale / mag,
-                v[1] * scale / mag,
-                v[2] * scale / mag
-        };
-    }
-
-    private static double[] subtract(double[] a, double[] b) {
-        return new double[]{a[0] - b[0], a[1] - b[1], a[2] - b[2]};
+        return Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
     }
 }

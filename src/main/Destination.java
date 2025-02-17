@@ -29,9 +29,13 @@ class Destination {
         double meanMotion = 2 * Math.PI / totalDaysInOrbit;
         double meanAnomaly = meanMotion * dayInOrbit;
 
-        OrbitalMechanics.OrbitalState state = OrbitalMechanics.calculateOrbitalState(
-                type.orbitalRadius, type.eccentricity, type.inclination,
-                type.argumentOfPerihelion, type.ascendingNode, meanAnomaly);
+        OrbitalMechanics.OrbitalState state;
+        if (Main.ENABLE_ORBITAL_MECHANICS) {
+            state = OrbitalMechanics.calculateOrbitalState(type.orbitalRadius, type.eccentricity,
+                    type.inclination, type.argumentOfPerihelion, type.ascendingNode, meanAnomaly);
+        } else {
+            state = new OrbitalMechanics.OrbitalState(new double[]{type.orbitalRadius, 0, 0}, new double[]{0, 0, 0}, 0);
+        }
 
         this.position = state.position;
         this.velocity = state.velocity;
@@ -55,37 +59,33 @@ class Destination {
         TransferCalculator.TransferResult earthTransfer =
                 TransferCalculator.calculateHohmannTransfer(asteroidPos, asteroidVel, position, velocity);
 
-        // Calculate hyperbolic excess velocity
-        double v_infinity = Math.sqrt(
-                Math.pow(earthTransfer.arrivalV[0] - velocity[0], 2) +
-                        Math.pow(earthTransfer.arrivalV[1] - velocity[1], 2) +
-                        Math.pow(earthTransfer.arrivalV[2] - velocity[2], 2)
-        ) * 29.784; // Convert AU/year to km/s
+        // Calculate hyperbolic excess velocity (relative velocity at Earth's sphere of influence)
+        double v_infinity = earthTransfer.deltaV;
 
         // Calculate arrival conditions
         double r_target = type == DestinationType.EARTH_LEO ? 6578.0 : 60000.0; // km
-
-        // Calculate capture delta-V with aerobraking
-        double v_peri = Math.sqrt(v_infinity * v_infinity + 2 * EARTH_MU / (EARTH_ATMOSPHERE + 6378.0));
         double v_final = Math.sqrt(EARTH_MU / r_target);
 
-        // Assume aerobraking can remove up to 7 km/s
-        double aerobrake_dv = Math.min(7.0, v_peri - v_final);
-        double capture_dv = v_final - (v_peri - aerobrake_dv);
+        // Total deltaV is heliocentric transfer plus capture requirement
+        double capture_dv = v_infinity + v_final;  // Need enough to overcome hyperbolic excess AND reach orbital velocity
+
+        // Reduce capture dv by up to 7 km/s to allow for aerobraking
+        if (Main.ENABLE_AEROBRAKING) {
+            capture_dv = Math.max(0, capture_dv - 7.0);
+        }
 
         this.deltaVEfficient = earthTransfer.deltaV + capture_dv;
         this.timeEfficient = earthTransfer.timeOfFlight;
 
-        // Fast transfer
+        // Fast transfer uses same approach with 20% penalty
         TransferCalculator.TransferResult directResult =
                 TransferCalculator.calculateDirectTransfer(asteroidPos, asteroidVel, position, velocity,
                         earthTransfer.timeOfFlight * 0.7);
 
-        this.deltaVFast = directResult.deltaV + capture_dv * 1.2; // 20% more for faster capture
+        this.deltaVFast = directResult.deltaV + capture_dv * 1.2;
         this.timeFast = directResult.timeOfFlight;
-
-        // Cycler costs nothing once established
-        this.deltaVCycler = 0.0;
+        // There is no capture for a cycler, just pay the delta V cost
+        this.deltaVCycler = earthTransfer.deltaV;
         this.timeCycler = 0.0;
     }
 
