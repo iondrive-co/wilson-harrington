@@ -10,79 +10,98 @@ class Destination {
     double deltaVFast;
     double deltaVCycler;
 
+    private double[] position;    // [x, y, z] in AU
+    private double[] velocity;    // [vx, vy, vz] in AU/year
+
+    private static final double EARTH_MU = 398600.4418; // km³/s²
+    private static final double EARTH_ATMOSPHERE = 100.0; // km - height for aerocapture
+
     public Destination(DestinationType type) {
         this.type = type;
+        this.position = new double[3];
+        this.velocity = new double[3];
     }
 
     public void updateDaily(int dayInOrbit, int totalDaysInOrbit) {
         double perihelionWeight = 1.0 - (double) dayInOrbit / totalDaysInOrbit;
         this.salePricePerKg = type.calculateSalePricePerKg(perihelionWeight, ThreadLocalRandom.current());
 
-        double phase = (2 * Math.PI * dayInOrbit) / totalDaysInOrbit;
-        double asteroidDistance = 0.991 + 3.231 * (1 + Math.sin(phase)) / 2;
+        double meanMotion = 2 * Math.PI / totalDaysInOrbit;
+        double meanAnomaly = meanMotion * dayInOrbit;
 
-        this.timeEfficient = calculateHohmannTransferTime(asteroidDistance, type.orbitalRadius);
-        this.timeFast = calculateFastTransferTime(asteroidDistance, type.orbitalRadius);
-        this.timeCycler = calculateCyclerTime(asteroidDistance, type.orbitalRadius);
+        OrbitalMechanics.OrbitalState state;
+        if (Main.ENABLE_ORBITAL_MECHANICS) {
+            state = OrbitalMechanics.calculateOrbitalState(type.orbitalRadius, type.eccentricity,
+                    type.inclination, type.argumentOfPerihelion, type.ascendingNode, meanAnomaly);
+        } else {
+            state = new OrbitalMechanics.OrbitalState(new double[]{type.orbitalRadius, 0, 0}, new double[]{0, 0, 0}, 0);
+        }
 
-        this.deltaVEfficient = calculateHohmannDeltaV(asteroidDistance, type.orbitalRadius);
-        this.deltaVFast = calculateFastDeltaV(asteroidDistance, type.orbitalRadius);
-        this.deltaVCycler = calculateCyclerDeltaV(asteroidDistance, type.orbitalRadius);
+        this.position = state.position;
+        this.velocity = state.velocity;
+
+        double[] asteroidPos = Main.ASTEROID_STATE.getPosition();
+        double[] asteroidVel = Main.ASTEROID_STATE.getVelocity();
+
+        calculateTransfers(asteroidPos, asteroidVel);
     }
 
-    private double calculateHohmannTransferTime(double r1, double r2) {
-        double G = 39.478;
-        double M = 1.0;
-        return Math.PI * Math.sqrt(Math.pow((r1 + r2) / 2, 3) / (G * M)) * 365.25;
+    private void calculateTransfers(double[] asteroidPos, double[] asteroidVel) {
+        if (type == DestinationType.EARTH_LEO || type == DestinationType.EML1) {
+            calculateEarthRelativeTransfers(asteroidPos, asteroidVel);
+        } else {
+            calculateHeliocentricTransfers(asteroidPos, asteroidVel);
+        }
     }
 
-    private double calculateFastTransferTime(double r1, double r2) {
-        double directDistance = Math.abs(r2 - r1);
-        double avgRadius = (r1 + r2) / 2;
-        double scaleFactor = 0.4;
+    private void calculateEarthRelativeTransfers(double[] asteroidPos, double[] asteroidVel) {
+        // Calculate heliocentric transfer
+        TransferCalculator.TransferResult earthTransfer =
+                TransferCalculator.calculateHohmannTransfer(asteroidPos, asteroidVel, position, velocity);
 
-        double G = 39.478;
-        double M = 1.0;
-        double time = scaleFactor * Math.PI * Math.sqrt(Math.pow(avgRadius, 3) / (G * M)) * 365.25;
-        double orbitChangePenalty = Math.pow(directDistance, 0.3) * 5;
+        // Calculate hyperbolic excess velocity (relative velocity at Earth's sphere of influence)
+        double v_infinity = earthTransfer.deltaV;
 
-        return time + orbitChangePenalty;
+        // Calculate arrival conditions
+        double r_target = type == DestinationType.EARTH_LEO ? 6578.0 : 60000.0; // km
+        double v_final = Math.sqrt(EARTH_MU / r_target);
+
+        // Total deltaV is heliocentric transfer plus capture requirement
+        double capture_dv = v_infinity + v_final;  // Need enough to overcome hyperbolic excess AND reach orbital velocity
+
+        // Reduce capture dv by up to 7 km/s to allow for aerobraking
+        if (Main.ENABLE_AEROBRAKING) {
+            capture_dv = Math.max(0, capture_dv - 7.0);
+        }
+
+        this.deltaVEfficient = earthTransfer.deltaV + capture_dv;
+        this.timeEfficient = earthTransfer.timeOfFlight;
+
+        // Fast transfer uses same approach with 20% penalty
+        TransferCalculator.TransferResult directResult =
+                TransferCalculator.calculateDirectTransfer(asteroidPos, asteroidVel, position, velocity,
+                        earthTransfer.timeOfFlight * 0.7);
+
+        this.deltaVFast = directResult.deltaV + capture_dv * 1.2;
+        this.timeFast = directResult.timeOfFlight;
+        // There is no capture for a cycler, just pay the delta V cost
+        this.deltaVCycler = earthTransfer.deltaV;
+        this.timeCycler = 0.0;
     }
 
-    private double calculateCyclerTime(double r1, double r2) {
-        double baseTime = calculateHohmannTransferTime(r1, r2);
-        double minDistance = Math.min(0.991, r2);
-        double minTime = calculateHohmannTransferTime(minDistance, r2);
-        return 0.7 * minTime + 0.3 * baseTime;
-    }
+    private void calculateHeliocentricTransfers(double[] asteroidPos, double[] asteroidVel) {
+        TransferCalculator.TransferResult hohmannResult =
+                TransferCalculator.calculateHohmannTransfer(asteroidPos, asteroidVel, position, velocity);
+        this.deltaVEfficient = hohmannResult.deltaV;
+        this.timeEfficient = hohmannResult.timeOfFlight;
 
-    private double calculateHohmannDeltaV(double r1, double r2) {
-        // Standard Hohmann transfer deltaV calculation
-        double mu = 39.478; // GM of Sun in AU^3/year^2
+        TransferCalculator.TransferResult directResult =
+                TransferCalculator.calculateDirectTransfer(asteroidPos, asteroidVel, position, velocity,
+                        hohmannResult.timeOfFlight * 0.7);
+        this.deltaVFast = directResult.deltaV;
+        this.timeFast = directResult.timeOfFlight;
 
-        // Calculate velocities
-        double v1 = Math.sqrt(mu / r1);  // Initial orbital velocity
-        double v2 = Math.sqrt(mu / r2);  // Final orbital velocity
-
-        // Transfer orbit velocities
-        double a = (r1 + r2) / 2;  // Semi-major axis of transfer orbit
-        double vt1 = Math.sqrt(mu * (2/r1 - 1/a));  // Velocity at periapsis of transfer
-        double vt2 = Math.sqrt(mu * (2/r2 - 1/a));  // Velocity at apoapsis of transfer
-
-        // Total deltaV is sum of both burns
-        return Math.abs(vt1 - v1) + Math.abs(v2 - vt2);
-    }
-
-    private double calculateFastDeltaV(double r1, double r2) {
-        // Fast transfer uses more direct path but requires more deltaV
-        double hohmannDeltaV = calculateHohmannDeltaV(r1, r2);
-        double directnessFactor = 1.5 + Math.abs(r2 - r1) * 0.2;  // More direct paths need more deltaV
-        return hohmannDeltaV * directnessFactor;
-    }
-
-    private double calculateCyclerDeltaV(double r1, double r2) {
-        // Cyclers use established orbits, so deltaV is lower once established
-        double hohmannDeltaV = calculateHohmannDeltaV(r1, r2);
-        return hohmannDeltaV * 0.3;  // Significant reduction due to using established orbit
+        this.deltaVCycler = hohmannResult.deltaV * 0.3;
+        this.timeCycler = hohmannResult.timeOfFlight * 0.8;
     }
 }
