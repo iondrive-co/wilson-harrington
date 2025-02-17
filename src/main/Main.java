@@ -8,6 +8,8 @@ public class Main {
     public static final AsteroidState ASTEROID_STATE = AsteroidState.wilsonHarrington();
     public static final boolean ENABLE_ORBITAL_MECHANICS = true;
     public static final boolean ENABLE_AEROBRAKING = true;
+    // A value of 1 uses the normal orbital mechanics, less than 1 makes it possible to achieve unrealistic transfers
+    public static final float DIFFICULTY_SCALE = 0.3f;
 
     enum OptionType {
         EFFICIENT, FAST, CYCLER

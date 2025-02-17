@@ -16,46 +16,31 @@ public class TransferCalculator {
         }
     }
 
-    public static TransferResult calculateHohmannTransfer(double[] r1, double[] v1,
-                                                          double[] r2, double[] v2) {
+    public static TransferResult calculateHohmannTransfer(double[] r1, double[] r2) {
         double radius1 = magnitude(r1);
         double radius2 = magnitude(r2);
-
-        // Calculate simplified but more realistic deltaV
         double orbitVel1 = Math.sqrt(MU / radius1);
         double orbitVel2 = Math.sqrt(MU / radius2);
-
-        // Basic Hohmann deltaV
         double a_transfer = (radius1 + radius2) / 2.0;
         double v1_t = Math.sqrt(MU * (2/radius1 - 1/a_transfer));
         double v2_t = Math.sqrt(MU * (2/radius2 - 1/a_transfer));
-
-        // Add a smaller plane change penalty
         double planeChangePenalty = 0.0;
         if (radius1 != radius2) {
             double angle = Math.acos(Math.min(1.0, Math.max(-1.0,
                     dotProduct(normalize(r1), normalize(r2)))));
-            planeChangePenalty = orbitVel1 * Math.sin(angle/4); // Reduced from angle/2
+            planeChangePenalty = orbitVel1 * Math.sin(angle/4);
         }
-
-        // Scale down the total deltaV to make it more achievable
         double deltaV = (Math.abs(v1_t - orbitVel1) +
                 Math.abs(orbitVel2 - v2_t) +
-                planeChangePenalty) * 0.3; // Scale factor
-
+                planeChangePenalty) * Main.DIFFICULTY_SCALE;
         double timeOfFlight = Math.PI * Math.sqrt(Math.pow(a_transfer, 3) / MU) * 365.25;
-
-        // Calculate representative velocities for arrival/departure
         double[] departureV = scaleVector(normalize(r1), v1_t);
         double[] arrivalV = scaleVector(normalize(r2), v2_t);
-
         return new TransferResult(deltaV, timeOfFlight, departureV, arrivalV);
     }
 
-    public static TransferResult calculateDirectTransfer(double[] r1, double[] v1,
-                                                         double[] r2, double[] v2,
-                                                         double timeOfFlight) {
-        TransferResult hohmann = calculateHohmannTransfer(r1, v1, r2, v2);
+    public static TransferResult calculateDirectTransfer(double[] r1, double[] r2, double timeOfFlight) {
+        TransferResult hohmann = calculateHohmannTransfer(r1, r2);
         return new TransferResult(hohmann.deltaV * 1.5, timeOfFlight,
                 hohmann.departureV, hohmann.arrivalV);
     }

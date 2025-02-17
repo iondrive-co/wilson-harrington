@@ -3,11 +3,9 @@ public class OrbitalMechanics {
 
     public static class OrbitalState {
         public final double[] position;    // [x, y, z] in AU
-        public final double[] velocity;    // [vx, vy, vz] in AU/year
 
-        public OrbitalState(double[] position, double[] velocity, double trueAnomaly) {
+        public OrbitalState(double[] position) {
             this.position = position;
-            this.velocity = velocity;
         }
     }
 
@@ -48,29 +46,7 @@ public class OrbitalMechanics {
         position[2] = xPrime * Math.sin(argPeri) * Math.sin(inc) +
                 yPrime * Math.cos(argPeri) * Math.sin(inc);
 
-        // Calculate velocity vector
-        double h = Math.sqrt(MU * p);  // specific angular momentum
-        double vRadial = (MU / h) * eccentricity * Math.sin(trueAnomaly);
-        double vTransverse = (MU / h) * (1 + eccentricity * Math.cos(trueAnomaly));
-
-        double vxPrime = vRadial * Math.cos(trueAnomaly) - vTransverse * Math.sin(trueAnomaly);
-        double vyPrime = vRadial * Math.sin(trueAnomaly) + vTransverse * Math.cos(trueAnomaly);
-
-        double[] velocity = new double[3];
-        velocity[0] = vxPrime * (Math.cos(argPeri) * Math.cos(node) -
-                Math.sin(argPeri) * Math.cos(inc) * Math.sin(node)) -
-                vyPrime * (Math.sin(argPeri) * Math.cos(node) +
-                        Math.cos(argPeri) * Math.cos(inc) * Math.sin(node));
-
-        velocity[1] = vxPrime * (Math.cos(argPeri) * Math.sin(node) +
-                Math.sin(argPeri) * Math.cos(inc) * Math.cos(node)) +
-                vyPrime * (Math.cos(argPeri) * Math.cos(inc) * Math.cos(node) -
-                        Math.sin(argPeri) * Math.sin(node));
-
-        velocity[2] = vxPrime * Math.sin(argPeri) * Math.sin(inc) +
-                vyPrime * Math.cos(argPeri) * Math.sin(inc);
-
-        return new OrbitalState(position, velocity, trueAnomaly);
+        return new OrbitalState(position);
     }
 
     private static double solveKepler(double M, double e) {

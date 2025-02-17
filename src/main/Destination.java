@@ -11,15 +11,12 @@ class Destination {
     double deltaVCycler;
 
     private double[] position;    // [x, y, z] in AU
-    private double[] velocity;    // [vx, vy, vz] in AU/year
 
     private static final double EARTH_MU = 398600.4418; // km³/s²
-    private static final double EARTH_ATMOSPHERE = 100.0; // km - height for aerocapture
 
     public Destination(DestinationType type) {
         this.type = type;
         this.position = new double[3];
-        this.velocity = new double[3];
     }
 
     public void updateDaily(int dayInOrbit, int totalDaysInOrbit) {
@@ -34,30 +31,28 @@ class Destination {
             state = OrbitalMechanics.calculateOrbitalState(type.orbitalRadius, type.eccentricity,
                     type.inclination, type.argumentOfPerihelion, type.ascendingNode, meanAnomaly);
         } else {
-            state = new OrbitalMechanics.OrbitalState(new double[]{type.orbitalRadius, 0, 0}, new double[]{0, 0, 0}, 0);
+            state = new OrbitalMechanics.OrbitalState(new double[]{type.orbitalRadius, 0, 0});
         }
 
         this.position = state.position;
-        this.velocity = state.velocity;
 
         double[] asteroidPos = Main.ASTEROID_STATE.getPosition();
-        double[] asteroidVel = Main.ASTEROID_STATE.getVelocity();
 
-        calculateTransfers(asteroidPos, asteroidVel);
+        calculateTransfers(asteroidPos);
     }
 
-    private void calculateTransfers(double[] asteroidPos, double[] asteroidVel) {
+    private void calculateTransfers(double[] asteroidPos) {
         if (type == DestinationType.EARTH_LEO || type == DestinationType.EML1) {
-            calculateEarthRelativeTransfers(asteroidPos, asteroidVel);
+            calculateEarthRelativeTransfers(asteroidPos);
         } else {
-            calculateHeliocentricTransfers(asteroidPos, asteroidVel);
+            calculateHeliocentricTransfers(asteroidPos);
         }
     }
 
-    private void calculateEarthRelativeTransfers(double[] asteroidPos, double[] asteroidVel) {
+    private void calculateEarthRelativeTransfers(double[] asteroidPos) {
         // Calculate heliocentric transfer
         TransferCalculator.TransferResult earthTransfer =
-                TransferCalculator.calculateHohmannTransfer(asteroidPos, asteroidVel, position, velocity);
+                TransferCalculator.calculateHohmannTransfer(asteroidPos, position);
 
         // Calculate hyperbolic excess velocity (relative velocity at Earth's sphere of influence)
         double v_infinity = earthTransfer.deltaV;
@@ -79,8 +74,7 @@ class Destination {
 
         // Fast transfer uses same approach with 20% penalty
         TransferCalculator.TransferResult directResult =
-                TransferCalculator.calculateDirectTransfer(asteroidPos, asteroidVel, position, velocity,
-                        earthTransfer.timeOfFlight * 0.7);
+                TransferCalculator.calculateDirectTransfer(asteroidPos, position, earthTransfer.timeOfFlight * 0.7);
 
         this.deltaVFast = directResult.deltaV + capture_dv * 1.2;
         this.timeFast = directResult.timeOfFlight;
@@ -89,15 +83,14 @@ class Destination {
         this.timeCycler = 0.0;
     }
 
-    private void calculateHeliocentricTransfers(double[] asteroidPos, double[] asteroidVel) {
+    private void calculateHeliocentricTransfers(double[] asteroidPos) {
         TransferCalculator.TransferResult hohmannResult =
-                TransferCalculator.calculateHohmannTransfer(asteroidPos, asteroidVel, position, velocity);
+                TransferCalculator.calculateHohmannTransfer(asteroidPos, position);
         this.deltaVEfficient = hohmannResult.deltaV;
         this.timeEfficient = hohmannResult.timeOfFlight;
 
         TransferCalculator.TransferResult directResult =
-                TransferCalculator.calculateDirectTransfer(asteroidPos, asteroidVel, position, velocity,
-                        hohmannResult.timeOfFlight * 0.7);
+                TransferCalculator.calculateDirectTransfer(asteroidPos, position, hohmannResult.timeOfFlight * 0.7);
         this.deltaVFast = directResult.deltaV;
         this.timeFast = directResult.timeOfFlight;
 

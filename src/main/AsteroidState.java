@@ -7,7 +7,6 @@ public class AsteroidState {
     private final double meanAnomalyEpoch;    // in degrees, position at epoch
 
     private double[] position;    // [x, y, z] in AU
-    private double[] velocity;    // [vx, vy, vz] in AU/year
     int storedWaterKgs;
 
     public AsteroidState(double semiMajorAxis, double eccentricity, double inclination,
@@ -36,7 +35,6 @@ public class AsteroidState {
                 semiMajorAxis, eccentricity, inclination, argumentPerihelion, ascendingNode, meanAnomaly);
 
         this.position = state.position;
-        this.velocity = state.velocity;
     }
 
     public double getDistanceFromSun() {
@@ -47,10 +45,6 @@ public class AsteroidState {
 
     public double[] getPosition() {
         return position.clone();
-    }
-
-    public double[] getVelocity() {
-        return velocity.clone();
     }
 
     public static AsteroidState wilsonHarrington() {
