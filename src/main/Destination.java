@@ -27,7 +27,7 @@ class Destination {
         double meanAnomaly = meanMotion * dayInOrbit;
 
         OrbitalMechanics.OrbitalState state;
-        if (Main.ENABLE_ORBITAL_MECHANICS) {
+        if (SimulationState.ENABLE_ORBITAL_MECHANICS) {
             state = OrbitalMechanics.calculateOrbitalState(type.orbitalRadius, type.eccentricity,
                     type.inclination, type.argumentOfPerihelion, type.ascendingNode, meanAnomaly);
         } else {
@@ -36,7 +36,7 @@ class Destination {
 
         this.position = state.position;
 
-        double[] asteroidPos = Main.ASTEROID_STATE.getPosition();
+        double[] asteroidPos = SimulationState.ASTEROID_STATE.getPosition();
 
         calculateTransfers(asteroidPos);
     }
@@ -65,7 +65,7 @@ class Destination {
         double capture_dv = v_infinity + v_final;  // Need enough to overcome hyperbolic excess AND reach orbital velocity
 
         // Reduce capture dv by up to 7 km/s to allow for aerobraking
-        if (Main.ENABLE_AEROBRAKING) {
+        if (SimulationState.ENABLE_AEROBRAKING) {
             capture_dv = Math.max(0, capture_dv - 7.0);
         }
 

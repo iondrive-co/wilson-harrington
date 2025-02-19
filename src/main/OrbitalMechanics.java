@@ -1,5 +1,4 @@
 public class OrbitalMechanics {
-    private static final double MU = 39.478; // GM of Sun in AU^3/year^2
 
     public static class OrbitalState {
         public final double[] position;    // [x, y, z] in AU

@@ -32,7 +32,7 @@ public class TransferCalculator {
         }
         double deltaV = (Math.abs(v1_t - orbitVel1) +
                 Math.abs(orbitVel2 - v2_t) +
-                planeChangePenalty) * Main.DIFFICULTY_SCALE;
+                planeChangePenalty) * SimulationState.DIFFICULTY_SCALE;
         double timeOfFlight = Math.PI * Math.sqrt(Math.pow(a_transfer, 3) / MU) * 365.25;
         double[] departureV = scaleVector(normalize(r1), v1_t);
         double[] arrivalV = scaleVector(normalize(r2), v2_t);
