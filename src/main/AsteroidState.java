@@ -5,7 +5,6 @@ public class AsteroidState {
     private final double argumentPerihelion;  // in degrees
     private final double ascendingNode;       // in degrees
     private final double meanAnomalyEpoch;    // in degrees, position at epoch
-
     private double[] position;    // [x, y, z] in AU
     int storedWaterKgs;
 
@@ -31,16 +30,12 @@ public class AsteroidState {
         double meanMotion = 2 * Math.PI / totalDaysInOrbit;  // radians per day
         double meanAnomaly = Math.toRadians(meanAnomalyEpoch) + (meanMotion * dayInOrbit);
 
-        OrbitalMechanics.OrbitalState state = OrbitalMechanics.calculateOrbitalState(
+        this.position = MathsUtil.calculateOrbitalState(
                 semiMajorAxis, eccentricity, inclination, argumentPerihelion, ascendingNode, meanAnomaly);
-
-        this.position = state.position;
     }
 
     public double getDistanceFromSun() {
-        return Math.sqrt(position[0] * position[0] +
-                position[1] * position[1] +
-                position[2] * position[2]);
+        return MathsUtil.magnitude(position);
     }
 
     public double[] getPosition() {
