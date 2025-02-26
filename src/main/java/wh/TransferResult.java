@@ -1,3 +1,5 @@
+package wh;
+
 public record TransferResult(
         double deltaV,          // Total delta-V in km/s
         double timeOfFlight,    // Transfer time in days

@@ -1,3 +1,5 @@
+package wh;
+
 import java.util.EnumMap;
 
 public record Hauler(HaulerClass type, EnumMap<WaterPropulsionSystem, Integer> engines, EnumMap<PowerSource, Integer> power) {

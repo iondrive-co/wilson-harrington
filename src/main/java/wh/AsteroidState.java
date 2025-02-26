@@ -1,3 +1,5 @@
+package wh;
+
 public class AsteroidState {
     private final double semiMajorAxis;      // in AU
     private final double eccentricity;        // dimensionless

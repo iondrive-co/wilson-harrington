@@ -1,3 +1,5 @@
+package wh;
+
 public enum PowerSource {
 
     SOLAR(50, 1, 500_000),

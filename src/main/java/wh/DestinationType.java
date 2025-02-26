@@ -1,3 +1,5 @@
+package wh;
+
 import java.util.Random;
 
 public enum DestinationType {
