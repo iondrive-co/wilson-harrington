@@ -1,49 +1,12 @@
 package wh;
 
+import jaid.collection.DoublesVector;
+
 public class MathsUtil {
 
     public static final double SUN_MU = 39.478;          // Sun's GM in AU^3/year^2
     public static final double YEAR_TO_DAYS = 365.25;    // Days in a year
     public static final double EARTH_MU = 398600.4418; // km³/s²
-
-    /**
-     * Calculates the magnitude (length) of a vector
-     */
-    public static double magnitude(double[] v) {
-        return Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
-    }
-
-    /**
-     * Normalizes a vector (creates unit vector in same direction)
-     */
-    public static double[] normalize(double[] v) {
-        double mag = magnitude(v);
-        if (mag < 1e-10) return new double[]{0, 0, 0};  // Prevent division by near-zero
-        return scaleVector(v, 1.0/mag);
-    }
-
-    /**
-     * Multiplies a vector by a scalar
-     */
-    public static double[] scaleVector(double[] v, double scale) {
-        return new double[]{v[0] * scale, v[1] * scale, v[2] * scale};
-    }
-
-    /**
-     * Calculates dot product of two vectors
-     */
-    public static double dotProduct(double[] a, double[] b) {
-        return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-    }
-
-    /**
-     * Calculates the angle between two vectors in radians
-     */
-    public static double angleBetween(double[] a, double[] b) {
-        double dotProduct = dotProduct(normalize(a), normalize(b));
-        // Clamp to valid domain for acos
-        return Math.acos(Math.min(1.0, Math.max(-1.0, dotProduct)));
-    }
 
     /**
      * Solves Kepler's equation for eccentric anomaly
@@ -85,7 +48,7 @@ public class MathsUtil {
      * @param meanAnomaly Mean anomaly in radians
      * @return Orbital state with position in AU
      */
-    public static double[] calculateOrbitalState(
+    public static DoublesVector calculateOrbitalState(
             double semiMajorAxis, double eccentricity, double inclination,
             double argumentPerihelion, double ascendingNode, double meanAnomaly) {
 
@@ -122,7 +85,7 @@ public class MathsUtil {
         position[2] = xPrime * Math.sin(argPeri) * Math.sin(inc) +
                 yPrime * Math.cos(argPeri) * Math.sin(inc);
 
-        return position;
+        return new DoublesVector(position);
     }
 
     /**
@@ -132,10 +95,10 @@ public class MathsUtil {
      * @param r2 Target position vector [x, y, z] in AU
      * @return Transfer parameters including delta-V and time
      */
-    public static TransferResult calculateHohmannTransfer(double[] r1, double[] r2) {
+    public static TransferResult calculateHohmannTransfer(final DoublesVector r1, final DoublesVector r2) {
         // Calculate the magnitudes of the position vectors (distances from Sun)
-        double radius1 = magnitude(r1);
-        double radius2 = magnitude(r2);
+        double radius1 = r1.magnitude();
+        double radius2 = r2.magnitude();
 
         // Calculate the orbital velocities at the current and target positions
         double orbitVel1 = Math.sqrt(SUN_MU / radius1);  // Circular orbit velocity at r1
@@ -152,7 +115,7 @@ public class MathsUtil {
         double planeChangePenalty = 0.0;
         if (radius1 != radius2) {
             // Calculate angle between position vectors
-            double angle = angleBetween(r1, r2);
+            double angle = r1.angleBetween(r2);
 
             // Apply simplified plane change cost (only a fraction of the full angle)
             planeChangePenalty = orbitVel1 * Math.sin(angle/4);
@@ -167,8 +130,8 @@ public class MathsUtil {
         double timeOfFlight = Math.PI * Math.sqrt(Math.pow(a_transfer, 3) / SUN_MU) * YEAR_TO_DAYS;
 
         // Calculate velocity vectors at departure and arrival
-        double[] departureV = scaleVector(normalize(r1), v1_t);
-        double[] arrivalV = scaleVector(normalize(r2), v2_t);
+        DoublesVector departureV = r1.normalize().scale((float)v1_t);
+        DoublesVector arrivalV = r2.normalize().scale((float)v2_t);
 
         return new TransferResult(deltaV, timeOfFlight, departureV, arrivalV);
     }
@@ -181,7 +144,7 @@ public class MathsUtil {
      * @param timeOfFlight Desired time of flight in days
      * @return Transfer parameters including delta-V and time
      */
-    public static TransferResult calculateDirectTransfer(double[] r1, double[] r2, double timeOfFlight) {
+    public static TransferResult calculateDirectTransfer(final DoublesVector r1, final DoublesVector r2, double timeOfFlight) {
         // Using Hohmann calculation with penalty factor for faster transfer
         TransferResult hohmann = calculateHohmannTransfer(r1, r2);
         return new TransferResult(hohmann.deltaV() * 1.5, timeOfFlight,
@@ -197,7 +160,7 @@ public class MathsUtil {
      * @param enableAerobraking Whether aerobraking is enabled
      * @return Array of [deltaVEfficient, timeEfficient, deltaVFast, timeFast, deltaVCycler, timeCycler]
      */
-    public static double[] calculateEarthRelativeTransfers(double[] asteroidPos, double[] destinationPos,
+    public static double[] calculateEarthRelativeTransfers(final DoublesVector asteroidPos, final DoublesVector destinationPos,
                                                            boolean isLEO, boolean enableAerobraking) {
         // Calculate heliocentric transfer
         TransferResult earthTransfer = calculateHohmannTransfer(asteroidPos, destinationPos);
@@ -245,7 +208,7 @@ public class MathsUtil {
      * @param destinationPos Destination position
      * @return Array of [deltaVEfficient, timeEfficient, deltaVFast, timeFast, deltaVCycler, timeCycler]
      */
-    public static double[] calculateHeliocentricTransfers(double[] asteroidPos, double[] destinationPos) {
+    public static double[] calculateHeliocentricTransfers(final DoublesVector asteroidPos, final DoublesVector destinationPos) {
         TransferResult hohmannResult = calculateHohmannTransfer(asteroidPos, destinationPos);
         double deltaVEfficient = hohmannResult.deltaV();
         double timeEfficient = hohmannResult.timeOfFlight();

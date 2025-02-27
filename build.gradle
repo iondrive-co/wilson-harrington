@@ -8,7 +8,6 @@ repositories {
 }
 
 dependencies {
-    //TODO implementation 'com.github.iondrive-co:JAid:-SNAPSHOT'
-
+    implementation 'com.github.iondrive-co:JAid:747eda6522'
     testImplementation 'org.assertj:assertj-core:3.24.2'
 }

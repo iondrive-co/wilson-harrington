@@ -1,5 +1,7 @@
 package wh;
 
+import jaid.collection.DoublesVector;
+
 public class AsteroidState {
     private final double semiMajorAxis;      // in AU
     private final double eccentricity;        // dimensionless
@@ -7,7 +9,7 @@ public class AsteroidState {
     private final double argumentPerihelion;  // in degrees
     private final double ascendingNode;       // in degrees
     private final double meanAnomalyEpoch;    // in degrees, position at epoch
-    private double[] position;    // [x, y, z] in AU
+    private DoublesVector position;    // [x, y, z] in AU
     int storedWaterKgs;
 
     public AsteroidState(double semiMajorAxis, double eccentricity, double inclination,
@@ -37,11 +39,11 @@ public class AsteroidState {
     }
 
     public double getDistanceFromSun() {
-        return MathsUtil.magnitude(position);
+        return position.magnitude();
     }
 
-    public double[] getPosition() {
-        return position.clone();
+    public DoublesVector getPosition() {
+        return position;
     }
 
     public static AsteroidState wilsonHarrington() {
