@@ -6,7 +6,7 @@ public class MathsUtil {
 
     public static final double SUN_MU = 39.478;          // Sun's GM in AU^3/year^2
     public static final double YEAR_TO_DAYS = 365.25;    // Days in a year
-    public static final double EARTH_MU = 398600.4418; // km³/s²
+    public static final double EARTH_MU = 398600.4418;   // km³/s²
 
     /**
      * Solves Kepler's equation for eccentric anomaly
@@ -24,6 +24,25 @@ public class MathsUtil {
             iter++;
         }
         return E;
+    }
+
+    /**
+     * Calculate the optimal phase angle for a Hohmann transfer between orbits
+     * This is the angle between departure and arrival positions for minimum energy
+     */
+    private static double calculateOptimalPhaseAngle(double r1, double r2) {
+        // For a Hohmann transfer, the optimal phase angle is based on the orbital period
+        double a_transfer = (r1 + r2) / 2.0;
+
+        // Calculate transfer time (half period of transfer orbit)
+        double transferTime = Math.PI * Math.sqrt(Math.pow(a_transfer, 3) / SUN_MU);
+
+        // During this time, the target planet will move through angle = ω * t
+        double omega2 = Math.sqrt(SUN_MU / Math.pow(r2, 3));  // Angular velocity of target
+        double angleSwept = omega2 * transferTime;
+
+        // The optimal phase angle is 180° (π) minus this swept angle
+        return Math.PI - angleSwept;
     }
 
     /**
@@ -88,145 +107,128 @@ public class MathsUtil {
         return new DoublesVector(position);
     }
 
-    /**
-     * Calculates a Hohmann transfer between two positions in space
-     *
-     * @param r1 Current position vector [x, y, z] in AU
-     * @param r2 Target position vector [x, y, z] in AU
-     * @return Transfer parameters including delta-V and time
-     */
-    public static TransferResult calculateHohmannTransfer(final DoublesVector r1, final DoublesVector r2) {
-        // Calculate the magnitudes of the position vectors (distances from Sun)
-        double radius1 = r1.magnitude();
-        double radius2 = r2.magnitude();
+    public static double[] calculateTransfers(DoublesVector asteroidPos, DoublesVector destPos,
+                                              boolean isEarthRelative, boolean enableAerobraking) {
+        // Common calculations
+        double r1 = asteroidPos.magnitude();  // Asteroid distance from Sun (AU)
+        double r2 = destPos.magnitude();      // Destination distance from Sun (AU)
+        double v1 = Math.sqrt(SUN_MU / r1);   // Asteroid orbital velocity
+        double v2 = Math.sqrt(SUN_MU / r2);   // Destination orbital velocity
+        double phaseAngle = asteroidPos.angleBetween(destPos);
 
-        // Calculate the orbital velocities at the current and target positions
-        double orbitVel1 = Math.sqrt(SUN_MU / radius1);  // Circular orbit velocity at r1
-        double orbitVel2 = Math.sqrt(SUN_MU / radius2);  // Circular orbit velocity at r2
+        // ---- EFFICIENT TRANSFER (Hohmann-like) ----
+        // Basic Hohmann transfer calculation
+        double a_transfer = (r1 + r2) / 2.0;
+        double transferPeriod = Math.PI * Math.sqrt(Math.pow(a_transfer, 3) / SUN_MU);
+        double time_efficient = transferPeriod * YEAR_TO_DAYS;
 
-        // Calculate semi-major axis of the transfer ellipse
-        double a_transfer = (radius1 + radius2) / 2.0;
+        // Calculate basic Hohmann delta-V
+        double v1_transfer = Math.sqrt(SUN_MU * (2/r1 - 1/a_transfer));
+        double v2_transfer = Math.sqrt(SUN_MU * (2/r2 - 1/a_transfer));
+        double deltaV_efficient = Math.abs(v1_transfer - v1) + Math.abs(v2 - v2_transfer);
 
-        // Calculate required velocities at departure and arrival points using vis-viva equation
-        double v1_t = Math.sqrt(SUN_MU * (2/radius1 - 1/a_transfer));  // Velocity at periapsis of transfer
-        double v2_t = Math.sqrt(SUN_MU * (2/radius2 - 1/a_transfer));  // Velocity at apoapsis of transfer
+        // Add phase angle penalty (increases as we move away from optimal alignment)
+        // Optimal angle depends on the bodies' relative positions in their orbits
+        double optimalAngle = Math.PI - (transferPeriod * Math.sqrt(SUN_MU / Math.pow(r2, 3)));
+        double angleDeviation = Math.abs(phaseAngle - optimalAngle);
+        double phaseFactor = 1.0 + 2.0 * Math.pow(Math.sin(angleDeviation / 2), 2);
+        deltaV_efficient *= phaseFactor;
+        deltaV_efficient *= SimulationState.DIFFICULTY_SCALE;
 
-        // Calculate additional delta-V needed for plane change
-        double planeChangePenalty = 0.0;
-        if (radius1 != radius2) {
-            // Calculate angle between position vectors
-            double angle = r1.angleBetween(r2);
+        // ---- FAST TRANSFER (Direct path) ----
+        // Calculate time based on a more direct path between the two orbits
+        // Time scales with the average orbital radius (larger orbits = longer times)
+        double avgRadius = (r1 + r2) / 2.0;
 
-            // Apply simplified plane change cost (only a fraction of the full angle)
-            planeChangePenalty = orbitVel1 * Math.sin(angle/4);
+        // Direct path transit time based on orbital mechanics approximation
+        // Proportional to the distance but with diminishing returns for larger distances
+        double distanceFactor = Math.sqrt(Math.pow(r1 - r2, 2) + 2 * r1 * r2 * (1 - Math.cos(phaseAngle)));
+        double time_fast = 40 * Math.sqrt(avgRadius) * Math.pow(distanceFactor, 0.6);
+
+        // Direct transfers scale non-linearly with distance
+        // Based on approximation of Lambert's problem solution
+        double radiiRatio = Math.max(r1, r2) / Math.min(r1, r2);
+        double baseMultiplier = 1.5 + 0.5 * radiiRatio;  // Scales with orbit size difference
+
+        // Average orbital velocity
+        double avgVelocity = (v1 + v2) / 2.0;
+
+        // Time efficiency penalty - shorter trips require more delta-V
+        // Fast trajectory time ratio compared to a theoretical minimum transfer time
+        double minTransferTime = distanceFactor * 25; // Theoretical minimum time
+        double timeEfficiencyFactor = Math.max(1.5, 3.0 * minTransferTime / time_fast);
+
+        // Calculate total delta-V for fast route
+        double deltaV_fast = avgVelocity * baseMultiplier * timeEfficiencyFactor * SimulationState.DIFFICULTY_SCALE;
+
+        // ---- CYCLER TRANSFER ----
+        // Cycler parameters depend on the specific orbits involved
+        double cyclerPeriod;
+        double deltaV_cycler;
+        double time_cycler;
+
+        // Calculate velocity vectors and relative velocity
+        DoublesVector v1_vec = asteroidPos.normalize().scale((float)v1);
+        DoublesVector v2_vec = destPos.normalize().scale((float)v2);
+        double relVelocity = v1_vec.distance(v2_vec);
+
+        if (isEarthRelative) {
+            // Earth-asteroid cyclers (need to match specific cycler orbits)
+            // Cycler orbit with period near asteroid's orbital period
+            cyclerPeriod = 1.0 * YEAR_TO_DAYS;  // 1 year period cycler (in days)
+
+            // Rendezvous delta-V depends on relative velocity at encounter
+            // Small fraction of relative velocity needed for rendezvous
+            deltaV_cycler = (0.2 + (0.1 * relVelocity)) * SimulationState.DIFFICULTY_SCALE;
+
+            // Time is more regular for established Earth cyclers
+            time_cycler = cyclerPeriod * 0.4;  // Fraction of cycler period
+        } else {
+            // Heliocentric cyclers between asteroids/planets
+            // Typically synodic period of the two bodies
+            double p1 = 2 * Math.PI * Math.sqrt(Math.pow(r1, 3) / SUN_MU) * YEAR_TO_DAYS;
+            double p2 = 2 * Math.PI * Math.sqrt(Math.pow(r2, 3) / SUN_MU) * YEAR_TO_DAYS;
+            cyclerPeriod = (p1 * p2) / Math.abs(p1 - p2);  // Synodic period
+
+            // Higher delta-V for non-Earth cycler rendezvous due to less frequent encounters
+            deltaV_cycler = (0.3 + (0.15 * relVelocity)) * SimulationState.DIFFICULTY_SCALE;
+
+            // Time depends on where in the cycle we encounter the cycler
+            time_cycler = cyclerPeriod * 0.3;  // Fraction of synodic period
         }
 
-        // Calculate total delta-V with difficulty scaling factor
-        double deltaV = (Math.abs(v1_t - orbitVel1) +
-                Math.abs(orbitVel2 - v2_t) +
-                planeChangePenalty) * SimulationState.DIFFICULTY_SCALE;
+        // Apply Earth capture delta-V for non-cycler transfers
+        if (isEarthRelative) {
+            double v_infinity = 0.5 * relVelocity;  // Approximation of hyperbolic excess velocity
+            double r_target = 6578.0;  // LEO radius in km
+            double v_orbit = Math.sqrt(EARTH_MU / r_target);  // Orbital velocity
 
-        // Calculate time of flight using Kepler's third law (half-orbit of transfer ellipse)
-        double timeOfFlight = Math.PI * Math.sqrt(Math.pow(a_transfer, 3) / SUN_MU) * YEAR_TO_DAYS;
+            // Calculate capture delta-V with aerobraking if enabled
+            double captureDV = v_infinity + v_orbit;
+            if (enableAerobraking) {
+                captureDV = Math.max(0, captureDV - 7.0);  // Aerobraking saves up to 7 km/s
+            }
 
-        // Calculate velocity vectors at departure and arrival
-        DoublesVector departureV = r1.normalize().scale((float)v1_t);
-        DoublesVector arrivalV = r2.normalize().scale((float)v2_t);
+            // Add capture requirements to non-cycler trajectories
+            deltaV_efficient += captureDV;
+            deltaV_fast += captureDV * 1.2;  // Higher entry velocity needs more capture delta-V
+        }
 
-        return new TransferResult(deltaV, timeOfFlight, departureV, arrivalV);
+        return new double[] {
+                deltaV_efficient, time_efficient,
+                deltaV_fast, time_fast,
+                deltaV_cycler, time_cycler
+        };
     }
 
-    /**
-     * Calculates a faster (but more expensive) direct transfer
-     *
-     * @param r1 Current position vector [x, y, z] in AU
-     * @param r2 Target position vector [x, y, z] in AU
-     * @param timeOfFlight Desired time of flight in days
-     * @return Transfer parameters including delta-V and time
-     */
-    public static TransferResult calculateDirectTransfer(final DoublesVector r1, final DoublesVector r2, double timeOfFlight) {
-        // Using Hohmann calculation with penalty factor for faster transfer
-        TransferResult hohmann = calculateHohmannTransfer(r1, r2);
-        return new TransferResult(hohmann.deltaV() * 1.5, timeOfFlight,
-                hohmann.departureV(), hohmann.arrivalV());
-    }
 
-    /**
-     * Calculates Earth-relative transfer parameters
-     *
-     * @param asteroidPos Asteroid position
-     * @param destinationPos Destination position
-     * @param isLEO Whether the destination is LEO (true) or EML1 (false)
-     * @param enableAerobraking Whether aerobraking is enabled
-     * @return Array of [deltaVEfficient, timeEfficient, deltaVFast, timeFast, deltaVCycler, timeCycler]
-     */
-    public static double[] calculateEarthRelativeTransfers(final DoublesVector asteroidPos, final DoublesVector destinationPos,
+    public static double[] calculateEarthRelativeTransfers(DoublesVector asteroidPos, DoublesVector destinationPos,
                                                            boolean isLEO, boolean enableAerobraking) {
-        // Calculate heliocentric transfer
-        TransferResult earthTransfer = calculateHohmannTransfer(asteroidPos, destinationPos);
-
-        // Calculate hyperbolic excess velocity (relative velocity at Earth's sphere of influence)
-        double v_infinity = earthTransfer.deltaV();
-
-        // Calculate arrival conditions
-        double r_target = isLEO ? 6578.0 : 60000.0; // km
-        double v_final = Math.sqrt(EARTH_MU / r_target);
-
-        // Total deltaV is heliocentric transfer plus capture requirement
-        double capture_dv = v_infinity + v_final;  // Need enough to overcome hyperbolic excess AND reach orbital velocity
-
-        // Reduce capture dv by up to 7 km/s to allow for aerobraking
-        if (enableAerobraking) {
-            capture_dv = Math.max(0, capture_dv - 7.0);
-        }
-
-        double deltaVEfficient = earthTransfer.deltaV() + capture_dv;
-        double timeEfficient = earthTransfer.timeOfFlight();
-
-        // Fast transfer uses same approach with 20% penalty
-        TransferResult directResult = calculateDirectTransfer(
-                asteroidPos, destinationPos, earthTransfer.timeOfFlight() * 0.7);
-
-        double deltaVFast = directResult.deltaV() + capture_dv * 1.2;
-        double timeFast = directResult.timeOfFlight();
-
-
-        // For Earth orbit cyclers, we need small delta-V to transfer on/off but travel time is still significant
-        double deltaVCycler = 0.2;
-        double timeCycler = timeEfficient * 0.75;
-
-        return new double[] {
-                deltaVEfficient, timeEfficient,
-                deltaVFast, timeFast,
-                deltaVCycler, timeCycler
-        };
+        return calculateTransfers(asteroidPos, destinationPos, true, enableAerobraking);
     }
 
-    /**
-     * Calculates heliocentric transfer parameters
-     *
-     * @param asteroidPos Asteroid position
-     * @param destinationPos Destination position
-     * @return Array of [deltaVEfficient, timeEfficient, deltaVFast, timeFast, deltaVCycler, timeCycler]
-     */
-    public static double[] calculateHeliocentricTransfers(final DoublesVector asteroidPos, final DoublesVector destinationPos) {
-        TransferResult hohmannResult = calculateHohmannTransfer(asteroidPos, destinationPos);
-        double deltaVEfficient = hohmannResult.deltaV();
-        double timeEfficient = hohmannResult.timeOfFlight();
 
-        TransferResult directResult = calculateDirectTransfer(
-                asteroidPos, destinationPos, hohmannResult.timeOfFlight() * 0.7);
-        double deltaVFast = directResult.deltaV();
-        double timeFast = directResult.timeOfFlight();
-
-        // For cycler routes to non-Earth destinations we need a small delta-V to rendezvous with the cycler
-        double deltaVCycler = 0.3;
-        double timeCycler = hohmannResult.timeOfFlight() * 0.8;
-
-        return new double[] {
-                deltaVEfficient, timeEfficient,
-                deltaVFast, timeFast,
-                deltaVCycler, timeCycler
-        };
+    public static double[] calculateHeliocentricTransfers(DoublesVector asteroidPos, DoublesVector destinationPos) {
+        return calculateTransfers(asteroidPos, destinationPos, false, true);
     }
 }
