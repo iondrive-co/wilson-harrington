@@ -43,9 +43,12 @@ public class Main {
             destination.updateDaily(dayInOrbit, totalDaysInOrbit);
         }
 
-        displayOptions("Efficient Options", destinations, shippableKgsWater, OptionType.EFFICIENT, hauler);
-        displayOptions("Fast Options", destinations, shippableKgsWater, OptionType.FAST, hauler);
-        displayOptions("Cycler Options", destinations, shippableKgsWater, OptionType.CYCLER, hauler);
+        displayOptions("Efficient Options (descending from highest profit)", destinations, shippableKgsWater,
+                OptionType.EFFICIENT, hauler, (o1, o2) -> Double.compare(o2.profit, o1.profit));
+        displayOptions("Fast Options (descending from fastest route)", destinations, shippableKgsWater,
+                OptionType.FAST, hauler, Comparator.comparingDouble(o -> o.time));
+        displayOptions("Cycler Options (descending from highest profit)", destinations, shippableKgsWater,
+                OptionType.CYCLER, hauler, (o1, o2) -> Double.compare(o2.profit, o1.profit));
 
         if (allNonCyclerOptionsUnprofitable(destinations, shippableKgsWater, hauler)) {
             SimulationState.ASTEROID_STATE.storedWaterKgs += SimulationState.KGS_WATER_MINED_PER_DAY;
@@ -56,16 +59,17 @@ public class Main {
     }
 
     private static void displayOptions(final String title, final List<Destination> destinations,
-                                       final int shippableKgsWater, final OptionType optionType, final Hauler hauler) {
+                                       final int shippableKgsWater, final OptionType optionType,
+                                       final Hauler hauler, final Comparator<ShipmentOption> comparator) {
         final List<ShipmentOption> options = new ArrayList<>();
         for (Destination destination : destinations) {
             options.add(calculateShipmentOption(destination, shippableKgsWater, optionType, hauler));
         }
 
-        options.sort((o1, o2) -> Double.compare(o2.profit, o1.profit));
+        options.sort(comparator);
         System.out.println(title + ":");
         System.out.printf("%-15s %-10s %-20s %-20s %-15s %-15s\n",
-                "Destination", "Price/kg", "Shipped/Received (kg)", "kg Water Fuel/Delta-V", "Profit", "Time (days)");
+                "Destination", "Price/kg", "kg Shipped/Received", "Fuel/Delta-V", "Profit", "Time (days)");
         for (ShipmentOption option : options) {
             System.out.printf("%-15s %-10.2f %-20s %-20s %-15s %-15.2f\n",
                     option.destination.type.name,
