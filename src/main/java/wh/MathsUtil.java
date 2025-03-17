@@ -190,9 +190,10 @@ public class MathsUtil {
         double deltaVFast = directResult.deltaV() + capture_dv * 1.2;
         double timeFast = directResult.timeOfFlight();
 
-        // There is no capture for a cycler, just pay the delta V cost
-        double deltaVCycler = earthTransfer.deltaV();
-        double timeCycler = 0.0;
+
+        // For Earth orbit cyclers, we need small delta-V to transfer on/off but travel time is still significant
+        double deltaVCycler = 0.2;
+        double timeCycler = timeEfficient * 0.75;
 
         return new double[] {
                 deltaVEfficient, timeEfficient,
@@ -218,7 +219,8 @@ public class MathsUtil {
         double deltaVFast = directResult.deltaV();
         double timeFast = directResult.timeOfFlight();
 
-        double deltaVCycler = hohmannResult.deltaV() * 0.3;
+        // For cycler routes to non-Earth destinations we need a small delta-V to rendezvous with the cycler
+        double deltaVCycler = 0.3;
         double timeCycler = hohmannResult.timeOfFlight() * 0.8;
 
         return new double[] {
