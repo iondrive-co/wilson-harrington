@@ -1,0 +1,19 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="wh in wilson-harrington.test" type="JUnit" factoryName="JUnit" nameIsGenerated="true">
+    <module name="wilson-harrington.test" />
+    <extension name="coverage">
+      <pattern>
+        <option name="PATTERN" value="wh.*" />
+        <option name="ENABLED" value="true" />
+      </pattern>
+    </extension>
+    <option name="PACKAGE_NAME" value="wh" />
+    <option name="MAIN_CLASS_NAME" value="" />
+    <option name="METHOD_NAME" value="" />
+    <option name="TEST_OBJECT" value="package" />
+    <option name="VM_PARAMETERS" value="-ea --add-modules jdk.incubator.vector" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>
