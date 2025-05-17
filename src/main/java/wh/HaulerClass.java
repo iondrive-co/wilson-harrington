@@ -2,7 +2,7 @@ package wh;
 
 public enum HaulerClass {
     SMALL(2_000, 20_000, 500),
-    MEDIUM(3_5000, 50_000, 1_250),
+    MEDIUM(3_500, 50_000, 1_250),
     LARGE(5_000, 125_000, 2_000),
     HUGE(8_000, 300_000, 5_000);
 

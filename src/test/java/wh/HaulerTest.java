@@ -42,10 +42,52 @@ class HaulerTest {
             new EnumMap<>(Map.of(PowerSource.SOLAR, 5))
         );
         
-        final int expectedWeight = HaulerClass.SMALL.dryWeightKgs + 
-                                  WaterPropulsionSystem.THERMAL.weightKg + 
-                                  (PowerSource.SOLAR.weightKgs * 5);
+        final int expectedDryWeight = HaulerClass.SMALL.dryWeightKgs + 
+                                     WaterPropulsionSystem.THERMAL.weightKg + 
+                                     (PowerSource.SOLAR.weightKgs * 5);
         
-        assertThat(hauler.getDryWeightKgs()).isEqualTo(expectedWeight);
+        assertThat(hauler.getDryWeightKgs()).isEqualTo(expectedDryWeight);
+    }
+    
+    @Test
+    void kgsFuelToAccelerateTo_shouldReturnFiniteValueForAchievableDeltaV() {
+        final Hauler hauler = new Hauler(
+            HaulerClass.SMALL,
+            new EnumMap<>(Map.of(WaterPropulsionSystem.THERMAL, 1)),
+            new EnumMap<>(Map.of(PowerSource.SOLAR, 5))
+        );
+        
+        final double fuelKgs = hauler.kgsFuelToAccelerateTo(100); // 0.1 km/s
+        
+        assertThat(fuelKgs).isFinite();
+        assertThat(fuelKgs).isGreaterThan(0);
+    }
+    
+    @Test
+    void kgsFuelToAccelerateTo_shouldReturnInfinityForUnachievableDeltaV() {
+        final Hauler hauler = new Hauler(
+            HaulerClass.SMALL,
+            new EnumMap<>(Map.of(WaterPropulsionSystem.THERMAL, 1)),
+            new EnumMap<>(Map.of(PowerSource.SOLAR, 5))
+        );
+        
+        final double fuelKgs = hauler.kgsFuelToAccelerateTo(100000); // 100 km/s - unrealistically high
+        
+        assertThat(fuelKgs).isEqualTo(Double.POSITIVE_INFINITY);
+    }
+    
+    @Test
+    void deltaVFromBurning_shouldBeProportionalToFuelWeight() {
+        final Hauler hauler = new Hauler(
+            HaulerClass.SMALL,
+            new EnumMap<>(Map.of(WaterPropulsionSystem.THERMAL, 1)),
+            new EnumMap<>(Map.of(PowerSource.SOLAR, 5))
+        );
+        
+        final double dryWeight = hauler.getDryWeightKgs();
+        final double deltaV1 = hauler.deltaVFromBurning(1000, dryWeight);
+        final double deltaV2 = hauler.deltaVFromBurning(2000, dryWeight);
+        
+        assertThat(deltaV2).isGreaterThan(deltaV1);
     }
 }
