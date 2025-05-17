@@ -1,0 +1,12 @@
+# Set all text files to use LF in repo, auto-convert to native on checkout
+* text=auto
+
+# Force specific file types to always use LF in repo
+*.java text eol=lf
+*.xml text eol=lf
+*.gradle text eol=lf
+*.md text eol=lf
+*.sh text eol=lf
+
+# Optionally force CRLF for Windows batch files
+*.bat text eol=crlf
