@@ -16,14 +16,14 @@ class ShipmentCalculatorTest {
 
     @BeforeEach
     void setUp() {
-        shipmentCalculator = new ShipmentCalculator();
-        hauler = new Hauler(
+        this.shipmentCalculator = new ShipmentCalculator();
+        this.hauler = new Hauler(
             HaulerClass.SMALL,
             new EnumMap<>(Map.of(WaterPropulsionSystem.THERMAL, 1)),
             new EnumMap<>(Map.of(PowerSource.SOLAR, 5))
         );
         
-        destinations = new ArrayList<>();
+        this.destinations = new ArrayList<>();
         for (DestinationType type : DestinationType.values()) {
             final Destination destination = type.createDestination();
             destination.updateDaily(30, 365);

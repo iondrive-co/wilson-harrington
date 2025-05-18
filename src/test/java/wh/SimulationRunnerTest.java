@@ -17,15 +17,15 @@ class SimulationRunnerTest {
 
     @BeforeEach
     void setUp() {
-        shipmentCalculator = new ShipmentCalculator();
-        simulationRunner = new SimulationRunner(shipmentCalculator);
-        hauler = new Hauler(
+        this.shipmentCalculator = new ShipmentCalculator();
+        this.simulationRunner = new SimulationRunner(shipmentCalculator);
+        this.hauler = new Hauler(
             HaulerClass.SMALL,
             new EnumMap<>(Map.of(WaterPropulsionSystem.THERMAL, 1)),
             new EnumMap<>(Map.of(PowerSource.SOLAR, 5))
         );
         
-        destinations = new ArrayList<>();
+        this.destinations = new ArrayList<>();
         for (DestinationType type : DestinationType.values()) {
             destinations.add(type.createDestination());
         }

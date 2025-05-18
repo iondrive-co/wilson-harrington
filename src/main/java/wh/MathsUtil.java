@@ -27,25 +27,6 @@ public class MathsUtil {
     }
 
     /**
-     * Calculate the optimal phase angle for a Hohmann transfer between orbits
-     * This is the angle between departure and arrival positions for minimum energy
-     */
-    private static double calculateOptimalPhaseAngle(double r1, double r2) {
-        // For a Hohmann transfer, the optimal phase angle is based on the orbital period
-        double a_transfer = (r1 + r2) / 2.0;
-
-        // Calculate transfer time (half period of transfer orbit)
-        double transferTime = Math.PI * Math.sqrt(Math.pow(a_transfer, 3) / SUN_MU);
-
-        // During this time, the target planet will move through angle = ω * t
-        double omega2 = Math.sqrt(SUN_MU / Math.pow(r2, 3));  // Angular velocity of target
-        double angleSwept = omega2 * transferTime;
-
-        // The optimal phase angle is 180° (π) minus this swept angle
-        return Math.PI - angleSwept;
-    }
-
-    /**
      * Calculates true anomaly from eccentric anomaly
      * @param E Eccentric anomaly in radians
      * @param e Eccentricity
