@@ -57,7 +57,7 @@ class HaulerTest {
             new EnumMap<>(Map.of(PowerSource.SOLAR, 5))
         );
         
-        final double fuelKgs = hauler.kgsFuelToAccelerateTo(100); // 0.1 km/s
+        final double fuelKgs = hauler.kgsFuelToAccelerateTo(0.1); // 0.1 km/s
         
         assertThat(fuelKgs).isFinite();
         assertThat(fuelKgs).isGreaterThan(0);

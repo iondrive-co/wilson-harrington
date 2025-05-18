@@ -126,6 +126,9 @@ public class MathsUtil {
         double v1_transfer = Math.sqrt(SUN_MU * (2/r1 - 1/a_transfer));
         double v2_transfer = Math.sqrt(SUN_MU * (2/r2 - 1/a_transfer));
         double deltaV_efficient = Math.abs(v1_transfer - v1) + Math.abs(v2 - v2_transfer);
+        if (deltaV_efficient < 0) {
+            throw new IllegalStateException("Negative delta V");
+        }
 
         // Add phase angle penalty (increases as we move away from optimal alignment)
         // Optimal angle depends on the bodies' relative positions in their orbits
