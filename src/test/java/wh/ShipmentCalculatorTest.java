@@ -62,4 +62,36 @@ class ShipmentCalculatorTest {
         
         assertThat(options).hasSize(destinations.size());
     }
+    
+    @Test
+    void calculateShipmentOption_shouldHandleZeroWaterShipped() {
+        final Destination destination = DestinationType.MARS.createDestination();
+        destination.updateDaily(30, 365);
+        
+        final ShipmentOption option = shipmentCalculator.calculateShipmentOption(
+            destination, 0, ShipmentCalculator.OptionType.EFFICIENT, hauler
+        );
+        
+        assertThat(option).isNotNull();
+        assertThat(option.kgsWaterShipped).isEqualTo(0);
+        assertThat(option.kgsWaterReceived).isEqualTo(0);
+    }
+    
+    @Test
+    void calculateShipmentOption_shouldHandleExtremelyHighDeltaV() {
+        final Destination destination = DestinationType.MARS.createDestination();
+        destination.updateDaily(30, 365);
+        
+        // Set an extremely high deltaV that would be impossible to achieve
+        destination.deltaVEfficient = 1000.0;
+        
+        final ShipmentOption option = shipmentCalculator.calculateShipmentOption(
+            destination, 1000, ShipmentCalculator.OptionType.EFFICIENT, hauler
+        );
+        
+        assertThat(option).isNotNull();
+        assertThat(option.kgsWaterUsedForDeltaV).isEqualTo(Double.POSITIVE_INFINITY);
+        assertThat(option.kgsWaterReceived).isEqualTo(0);
+        assertThat(option.profit).isEqualTo(-1);
+    }
 }

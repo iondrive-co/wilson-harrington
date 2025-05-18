@@ -15,7 +15,8 @@ public class ShipmentOption {
         this.kgsWaterShipped = kgsWaterShipped;
         this.kgsWaterUsedForDeltaV = kgsWaterUsedForDeltaV;
         this.kgsWaterReceived = Math.max(kgsWaterShipped - kgsWaterUsedForDeltaV, 0);
-        this.profit = kgsWaterReceived > 0 ? kgsWaterReceived * destination.salePricePerKg : -1;
+        this.profit = kgsWaterReceived > 0 ? kgsWaterReceived * destination.salePricePerKg : 
+                      (kgsWaterShipped == 0 ? 0 : -1);
         this.deltaV = deltaV;
         this.time = time;
     }

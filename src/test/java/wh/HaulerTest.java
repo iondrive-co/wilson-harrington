@@ -5,6 +5,7 @@ import java.util.EnumMap;
 import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.within;
 
 class HaulerTest {
 
@@ -61,6 +62,19 @@ class HaulerTest {
         
         assertThat(fuelKgs).isFinite();
         assertThat(fuelKgs).isGreaterThan(0);
+    }
+    
+    @Test
+    void kgsFuelToAccelerateTo_shouldHandleZeroDeltaV() {
+        final Hauler hauler = new Hauler(
+            HaulerClass.SMALL,
+            new EnumMap<>(Map.of(WaterPropulsionSystem.THERMAL, 1)),
+            new EnumMap<>(Map.of(PowerSource.SOLAR, 5))
+        );
+        
+        final double fuelKgs = hauler.kgsFuelToAccelerateTo(0.0);
+        
+        assertThat(fuelKgs).isCloseTo(0.0, within(0.01));
     }
     
     @Test

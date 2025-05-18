@@ -35,6 +35,11 @@ public record Hauler(HaulerClass type, EnumMap<WaterPropulsionSystem, Integer> e
      * Amount of water required to accelerate the dry weight + that water fuel to the target delta v
      */
     double kgsFuelToAccelerateTo(double targetDeltaV) {
+        // Special case for zero deltaV - no fuel needed
+        if (targetDeltaV == 0.0) {
+            return 0.0;
+        }
+        
         final double dryWeightKgs = getDryWeightKgs();
 
         // Check if deltaV is achievable

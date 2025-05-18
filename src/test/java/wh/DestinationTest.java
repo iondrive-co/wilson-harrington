@@ -38,4 +38,37 @@ class DestinationTest {
             // If we got here without exception, the test passes
         }
     }
+    
+    @Test
+    void updateDaily_shouldHandleEdgeCaseDays() {
+        final Destination destination = DestinationType.MARS.createDestination();
+        
+        // Test with day 0 (edge case)
+        assertThatCode(() -> destination.updateDaily(0, 365)).doesNotThrowAnyException();
+        
+        // Test with negative day (edge case)
+        assertThatCode(() -> destination.updateDaily(-10, 365)).doesNotThrowAnyException();
+        
+        // Test with day > totalDays (edge case)
+        assertThatCode(() -> destination.updateDaily(366, 365)).doesNotThrowAnyException();
+        
+        // Test with zero totalDays (edge case that could cause division by zero)
+        assertThatCode(() -> destination.updateDaily(1, 0)).doesNotThrowAnyException();
+    }
+    
+    @Test
+    void updateDaily_shouldUpdateTransferValues() {
+        final Destination destination = DestinationType.MARS.createDestination();
+        
+        // Update and capture initial values
+        destination.updateDaily(1, 365);
+        final double initialDeltaVEfficient = destination.deltaVEfficient;
+        final double initialTimeEfficient = destination.timeEfficient;
+        
+        // Update to a different day and verify values change
+        destination.updateDaily(180, 365);
+        
+        assertThat(destination.deltaVEfficient).isNotEqualTo(initialDeltaVEfficient);
+        assertThat(destination.timeEfficient).isNotEqualTo(initialTimeEfficient);
+    }
 }

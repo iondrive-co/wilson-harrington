@@ -163,6 +163,9 @@ public class MathsUtil {
 
         // Calculate total delta-V for fast route
         double deltaV_fast = avgVelocity * baseMultiplier * timeEfficiencyFactor * SimulationState.DIFFICULTY_SCALE;
+        if (deltaV_fast < 0) {
+            throw new IllegalStateException("Negative delta V");
+        }
 
         // ---- CYCLER TRANSFER ----
         // Cycler parameters depend on the specific orbits involved
@@ -194,7 +197,7 @@ public class MathsUtil {
             cyclerPeriod = (p1 * p2) / Math.abs(p1 - p2);  // Synodic period
 
             // Higher delta-V for non-Earth cycler rendezvous due to less frequent encounters
-            deltaV_cycler = (0.3 + (0.15 * relVelocity)) * SimulationState.DIFFICULTY_SCALE;
+            deltaV_cycler = Math.max(0.01, (0.3 + (0.15 * relVelocity)) * SimulationState.DIFFICULTY_SCALE);
 
             // Time depends on where in the cycle we encounter the cycler
             time_cycler = cyclerPeriod * 0.3;  // Fraction of synodic period

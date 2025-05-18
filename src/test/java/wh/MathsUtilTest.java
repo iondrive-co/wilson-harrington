@@ -243,6 +243,19 @@ class MathsUtilTest {
     }
     
     @Test
+    void calculateTransfers_withOppositePositions_shouldRequireHighDeltaV() {
+        // Create positions on opposite sides of the sun
+        final DoublesVector pos1 = new DoublesVector(new double[]{1.0, 0.0, 0.0});
+        final DoublesVector pos2 = new DoublesVector(new double[]{-1.5, 0.0, 0.0});
+        
+        final double[] transfers = MathsUtil.calculateTransfers(pos1, pos2, false, false);
+        
+        // Verify that deltaV is positive and significant
+        assertThat(transfers[0]).isGreaterThan(0.0); // deltaV_efficient
+        assertThat(transfers[2]).isGreaterThan(transfers[0]); // Fast should be more than efficient
+    }
+    
+    @Test
     void calculateTransfers_withSamePosition_shouldReturnLowDeltaV() {
         final DoublesVector pos = new DoublesVector(new double[]{1.0, 0.0, 0.0});
         
@@ -252,5 +265,28 @@ class MathsUtilTest {
         assertThat(transfers[0]).isCloseTo(0.0, within(0.1));
         // Time should still be positive
         assertThat(transfers[1]).isGreaterThan(0);
+    }
+    
+    @Test
+    void calculateTransfers_shouldNeverReturnNegativeDeltaV() {
+        // Test with various positions
+        final DoublesVector[] positions = {
+            new DoublesVector(new double[]{1.0, 0.0, 0.0}),
+            new DoublesVector(new double[]{0.0, 1.0, 0.0}),
+            new DoublesVector(new double[]{-1.0, 0.0, 0.0}),
+            new DoublesVector(new double[]{0.0, -1.0, 0.0}),
+            new DoublesVector(new double[]{2.0, 2.0, 0.0})
+        };
+        
+        for (DoublesVector pos1 : positions) {
+            for (DoublesVector pos2 : positions) {
+                final double[] transfers = MathsUtil.calculateTransfers(pos1, pos2, false, false);
+                
+                // All deltaV values should be non-negative
+                assertThat(transfers[0]).isNotNegative(); // deltaV_efficient
+                assertThat(transfers[2]).isNotNegative(); // deltaV_fast
+                assertThat(transfers[4]).isNotNegative(); // deltaV_cycler
+            }
+        }
     }
 }
